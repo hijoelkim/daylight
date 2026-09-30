@@ -1,0 +1,86 @@
+import type { ReactNode } from "react";
+
+const fieldClass =
+  "min-h-11 border border-border bg-bg px-3 text-fg outline-none focus-visible:border-accent";
+
+export type LiveSettings = {
+  idle_threshold_s: string;
+  retain_days: string;
+  record_titles: string;
+  start_with_windows: string;
+  city: string;
+  lat: string;
+  lon: string;
+};
+
+export function SettingsPanel({
+  settings,
+  paused,
+  onChange,
+  onExport,
+  onWipe,
+  onPause,
+}: {
+  settings: LiveSettings;
+  paused: boolean;
+  onChange: (patch: Partial<LiveSettings>) => void;
+  onExport: () => void;
+  onWipe: () => void;
+  onPause: () => void;
+}) {
+  return (
+    <div>
+      <SettingRow label="Idle threshold">
+        <span className="flex items-center gap-2">
+          <input type="number" min={30} max={300} className={`${fieldClass} w-24 text-right font-mono`} value={settings.idle_threshold_s} onChange={(event) => onChange({ idle_threshold_s: event.target.value })} />
+          <span className="font-mono text-sm text-muted">s</span>
+        </span>
+      </SettingRow>
+      <SettingRow label="Keep history">
+        <span className="flex items-center gap-2">
+          <input type="number" min={1} max={3650} className={`${fieldClass} w-24 text-right font-mono`} value={settings.retain_days} onChange={(event) => onChange({ retain_days: event.target.value })} />
+          <span className="font-mono text-sm text-muted">days</span>
+        </span>
+      </SettingRow>
+      <SettingRow label="Record window titles">
+        <button type="button" role="switch" aria-checked={settings.record_titles === "1"} onClick={() => onChange({ record_titles: settings.record_titles === "1" ? "0" : "1" })} className={`relative h-6 w-10 border ${settings.record_titles === "1" ? "border-accent bg-bg-subtle" : "border-border bg-bg"}`}>
+          <span className={`absolute top-0.5 left-0.5 size-4 bg-accent ${settings.record_titles === "1" ? "translate-x-4" : ""}`} />
+        </button>
+      </SettingRow>
+      <SettingRow label="Start with Windows">
+        <button type="button" role="switch" aria-checked={settings.start_with_windows === "1"} onClick={() => onChange({ start_with_windows: settings.start_with_windows === "1" ? "0" : "1" })} className={`relative h-6 w-10 border ${settings.start_with_windows === "1" ? "border-accent bg-bg-subtle" : "border-border bg-bg"}`}>
+          <span className={`absolute top-0.5 left-0.5 size-4 bg-accent ${settings.start_with_windows === "1" ? "translate-x-4" : ""}`} />
+        </button>
+      </SettingRow>
+      <SettingRow label="City">
+        <input className={`${fieldClass} w-40`} value={settings.city} placeholder="Sydney or lat,lon" onChange={(event) => onChange({ city: event.target.value })} />
+      </SettingRow>
+      <SettingRow label="Latitude">
+        <input className={`${fieldClass} w-32 text-right font-mono`} value={settings.lat} onChange={(event) => onChange({ lat: event.target.value })} />
+      </SettingRow>
+      <SettingRow label="Longitude">
+        <input className={`${fieldClass} w-32 text-right font-mono`} value={settings.lon} onChange={(event) => onChange({ lon: event.target.value })} />
+      </SettingRow>
+      <div className="mt-6 flex flex-wrap gap-4">
+        <button type="button" className="inline-flex min-h-11 items-center text-sm text-fg" onClick={onPause}>
+          {paused ? "Resume recording" : "Pause recording"}
+        </button>
+        <button type="button" className="inline-flex min-h-11 items-center text-sm text-fg" onClick={onExport}>
+          Export
+        </button>
+        <button type="button" className="inline-flex min-h-11 items-center text-sm text-danger" onClick={onWipe}>
+          Wipe history
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function SettingRow({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="flex items-center justify-between gap-4 border-t border-border py-4">
+      <span>{label}</span>
+      {children}
+    </div>
+  );
+}

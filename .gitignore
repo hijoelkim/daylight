@@ -1,0 +1,17 @@
+node_modules/
+dist/
+.vercel/
+.tanstack/
+.grok/
+artifacts/
+attachments/
+screenshots/
+.project_id
+.node_modules.lock
+
+desktop/src-tauri/target/
+desktop/ui/dist/
+
+*.log
+.env
+.env.*

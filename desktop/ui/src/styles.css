@@ -1,0 +1,49 @@
+@import "@fontsource/barlow/latin-400.css";
+@import "@fontsource/barlow/latin-500.css";
+@import "@fontsource/barlow/latin-600.css";
+@import "@fontsource/barlow-condensed/latin-500.css";
+@import "@fontsource/barlow-condensed/latin-600.css";
+@import "@fontsource/ibm-plex-mono/latin-400.css";
+@import "@fontsource/ibm-plex-mono/latin-500.css";
+@import "tailwindcss";
+
+/* Same tokens as src/styles.css. Do not invent a second palette. */
+@theme {
+  --font-sans: "Barlow";
+  --font-display: "Barlow Condensed";
+  --font-mono: "IBM Plex Mono";
+  --color-bg: #08090c;
+  --color-bg-elevated: #101218;
+  --color-bg-subtle: #171c24;
+  --color-fg: #e8eaee;
+  --color-muted: #8b919c;
+  --color-subtle: #5c6370;
+  --color-border: #252a33;
+  --color-accent: #c5cdd8;
+  --color-ok: #3dba7c;
+  --color-warn: #c4924a;
+  --color-danger: #e25a4a;
+  --color-horizon-sky: #1a2838;
+  --color-horizon-ground: #2c261f;
+}
+
+@layer base {
+  html {
+    color-scheme: dark;
+    background: var(--color-bg);
+    color: var(--color-fg);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  body {
+    min-height: 100%;
+    background: var(--color-bg);
+    color: var(--color-fg);
+    font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+  }
+
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+}

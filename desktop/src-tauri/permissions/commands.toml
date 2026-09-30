@@ -1,0 +1,84 @@
+[[permission]]
+identifier = "allow-consent-accepted"
+description = "Read whether consent is stored."
+commands.allow = ["consent_accepted"]
+
+[[permission]]
+identifier = "allow-accept-consent"
+description = "Store consent and keep the window."
+commands.allow = ["accept_consent"]
+
+[[permission]]
+identifier = "allow-decline-consent"
+description = "Quit without storing consent."
+commands.allow = ["decline_consent"]
+
+[[permission]]
+identifier = "allow-get-today"
+description = "Stub."
+commands.allow = ["get_today"]
+
+[[permission]]
+identifier = "allow-get-week"
+description = "Stub."
+commands.allow = ["get_week"]
+
+[[permission]]
+identifier = "allow-get-apps"
+description = "Stub."
+commands.allow = ["get_apps"]
+
+[[permission]]
+identifier = "allow-get-sun"
+description = "Stub."
+commands.allow = ["get_sun"]
+
+[[permission]]
+identifier = "allow-list-reminders"
+description = "Stub."
+commands.allow = ["list_reminders"]
+
+[[permission]]
+identifier = "allow-save-reminder"
+description = "Stub."
+commands.allow = ["save_reminder"]
+
+[[permission]]
+identifier = "allow-delete-reminder"
+description = "Stub."
+commands.allow = ["delete_reminder"]
+
+[[permission]]
+identifier = "allow-test-reminder"
+description = "Stub. Does not fire a toast."
+commands.allow = ["test_reminder"]
+
+[[permission]]
+identifier = "allow-get-settings"
+description = "Stub."
+commands.allow = ["get_settings"]
+
+[[permission]]
+identifier = "allow-set-settings"
+description = "Stub."
+commands.allow = ["set_settings"]
+
+[[permission]]
+identifier = "allow-export-data"
+description = "Stub."
+commands.allow = ["export_data"]
+
+[[permission]]
+identifier = "allow-wipe-data"
+description = "Stub."
+commands.allow = ["wipe_data"]
+
+[[permission]]
+identifier = "allow-pause"
+description = "Stub pause. Updates the tray tooltip only."
+commands.allow = ["pause"]
+
+[[permission]]
+identifier = "allow-resume"
+description = "Stub resume. Updates the tray tooltip only."
+commands.allow = ["resume"]
