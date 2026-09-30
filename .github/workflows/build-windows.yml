@@ -8,6 +8,10 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: build-windows
+  cancel-in-progress: true
+
 jobs:
   windows:
     runs-on: windows-latest
@@ -45,6 +49,7 @@ jobs:
           Copy-Item $setup.FullName artifacts/Daylight-Setup.exe
 
       - uses: actions/upload-artifact@v4
+        continue-on-error: true
         with:
           name: daylight-windows
           path: |
