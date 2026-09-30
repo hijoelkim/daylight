@@ -388,6 +388,12 @@ fn windows_toast(app: &AppHandle, title: &str, body: &str, id: i64) -> bool {
         .summary(title)
         .body(body)
         .app_id("com.hijoelkim.daylight");
+    if id != 0 {
+        notification
+            .timeout(notify_rust::Timeout::Never)
+            .urgency(notify_rust::Urgency::Critical);
+        notification.action("close", "Close");
+    }
     notification.action("snooze-5", "Snooze 5");
     notification.action("snooze-15", "Snooze 15");
     notification.action("open", "Open Daylight");
