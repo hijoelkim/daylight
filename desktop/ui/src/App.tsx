@@ -53,6 +53,7 @@ const emptySettings: LiveSettings = {
   lon: "151.2093",
   screen_budget_min: "0",
   hardcore: "0",
+  auto_dim: "0",
 };
 
 export function App() {
