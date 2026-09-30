@@ -4,9 +4,10 @@ export type LiveApp = {
   app_key: string;
   product_name: string;
   active_ms: number;
+  color?: string;
 };
 
-const chips = ["bg-accent", "bg-muted", "bg-warn", "bg-accent/70", "bg-warn/60"];
+const chips = ["#e8dcc8", "#c4924a", "#7ea38a", "#8aa4c5", "#c58a7a"];
 
 export function AppList({
   dateLabel,
@@ -36,18 +37,21 @@ export function AppList({
         <p className="mt-4 text-muted">No apps yet.</p>
       ) : (
         <ul className="mt-4 space-y-4">
-          {apps.map((app, index) => (
+          {apps.map((app, index) => {
+            const color = app.color || chips[index % chips.length];
+            return (
             <li key={app.app_key} className="grid grid-cols-[0.75rem_1fr] gap-x-3">
-              <span className={`mt-1.5 size-2.5 ${chips[index % chips.length]}`} aria-hidden="true" />
+              <span className="mt-1.5 size-2.5" style={{ backgroundColor: color }} aria-hidden="true" />
               <div className="flex items-baseline justify-between gap-4">
                 <span>{app.product_name || app.app_key}</span>
                 <span className="font-mono text-sm tabular-nums text-muted">{formatMs(app.active_ms)}</span>
               </div>
               <div className="col-start-2 mt-2 h-1 bg-bg-subtle" aria-hidden="true">
-                <div className="h-full bg-accent" style={{ width: `${(app.active_ms / max) * 100}%` }} />
+                <div className="h-full" style={{ width: `${(app.active_ms / max) * 100}%`, backgroundColor: color }} />
               </div>
             </li>
-          ))}
+            );
+          })}
         </ul>
       )}
     </section>

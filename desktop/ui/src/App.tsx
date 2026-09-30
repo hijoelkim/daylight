@@ -5,23 +5,28 @@ import { AppList, type LiveApp } from "./components/AppList";
 import { DayMeter } from "./components/DayMeter";
 import { ReminderEditor, type ReminderRow } from "./components/ReminderEditor";
 import { SettingsPanel, type LiveSettings } from "./components/SettingsPanel";
-import { SunArc } from "./components/SunArc";
+import { SunArc, type ArcMark } from "./components/SunArc";
 import { WeekChart, type WeekDay } from "./components/WeekChart";
 import { formatMs } from "./format";
 
 type Phase = "loading" | "consent" | "ready" | "unreachable";
 type Tab = "Week" | "Reminders" | "Settings";
 
+type Span = { color: string; start: number; end: number };
+
 type Today = {
   active_ms: number;
   idle_ms: number;
   locked_ms: number;
   apps: LiveApp[];
+  spans?: Span[];
   current: { app_key: string; product_name: string } | null;
   paused?: boolean;
 };
 
 type Sun = {
+  sunrise?: number | null;
+  sunset?: number | null;
   sunrise_clock?: string;
   solar_noon_clock?: string;
   sunset_clock?: string;
@@ -141,6 +146,16 @@ export function App() {
       : 0;
   const noonT = 0.5;
   const nowT = sun?.now_fraction_along_arc ?? 0;
+  const day = (sun?.sunset ?? 0) - (sun?.sunrise ?? 0);
+  const marks: ArcMark[] =
+    polar || day <= 0
+      ? []
+      : (today?.spans ?? []).flatMap((span) => {
+          const rise = sun?.sunrise ?? 0;
+          const t0 = Math.max(0, (span.start - rise) / day);
+          const t1 = Math.min(1, (span.end - rise) / day);
+          return t1 > t0 ? [{ t0, t1, color: span.color }] : [];
+        });
 
   return (
     <main className="min-h-dvh bg-bg px-6 py-8 text-fg">
@@ -165,7 +180,7 @@ export function App() {
         <div className="mx-auto w-full max-w-4xl pb-8">
           <h1 className="font-display text-4xl font-medium tracking-wide sm:text-5xl">Today</h1>
           <section className="mt-8" aria-label="Day arc">
-            <SunArc rise={sun?.sunrise_clock || "--:--"} set={sun?.sunset_clock || "--:--"} noonT={noonT} nowT={polar ? 0 : nowT} />
+            <SunArc rise={sun?.sunrise_clock || "--:--"} set={sun?.sunset_clock || "--:--"} noonT={noonT} nowT={polar ? 0 : nowT} marks={marks} />
             <DayMeter
               screen={`${formatMs(today?.active_ms ?? 0)} on screen`}
               daylightPct={pct}

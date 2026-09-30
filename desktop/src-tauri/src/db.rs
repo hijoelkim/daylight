@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 use std::path::PathBuf;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
@@ -329,7 +329,69 @@ pub fn upsert_app(conn: &Connection, app_key: &str, exe_name: &str, product_name
         params![app_key, exe_name, product_name],
     )
     .map_err(|err| err.to_string())?;
+    let _ = assign_color(conn, app_key)?;
     Ok(())
+}
+
+const APP_COLORS: &[&str] = &[
+    "#e8dcc8", "#c4924a", "#7ea38a", "#8aa4c5", "#c58a7a", "#a894c4", "#c5c07a", "#7aafa8",
+    "#c47a96", "#9aab7a", "#7a8fc4", "#d4a08a",
+];
+
+pub fn assign_color(conn: &Connection, app_key: &str) -> Result<String, String> {
+    if let Some(color) = conn
+        .query_row(
+            "SELECT color FROM apps WHERE app_key = ?1 AND color IS NOT NULL AND color != ''",
+            [app_key],
+            |row| row.get::<_, String>(0),
+        )
+        .optional()
+        .map_err(|err| err.to_string())?
+    {
+        return Ok(color);
+    }
+    let mut stmt = conn
+        .prepare("SELECT color FROM apps WHERE color IS NOT NULL AND color != ''")
+        .map_err(|err| err.to_string())?;
+    let used = stmt
+        .query_map([], |row| row.get::<_, String>(0))
+        .map_err(|err| err.to_string())?
+        .collect::<Result<HashSet<String>, _>>()
+        .map_err(|err| err.to_string())?;
+    let color = APP_COLORS
+        .iter()
+        .find(|color| !used.contains(**color))
+        .map(|color| (*color).to_string())
+        .unwrap_or_else(|| color_from_key(app_key));
+    conn.execute(
+        "UPDATE apps SET color = ?2 WHERE app_key = ?1",
+        params![app_key, color],
+    )
+    .map_err(|err| err.to_string())?;
+    Ok(color)
+}
+
+fn color_from_key(key: &str) -> String {
+    let hash = key.bytes().fold(2166136261u32, |hash, byte| {
+        hash.wrapping_mul(16777619) ^ u32::from(byte)
+    });
+    let h = f64::from(hash % 360);
+    let s = 0.42;
+    let l = 0.64;
+    let c = (1.0 - f64::abs(2.0 * l - 1.0)) * s;
+    let hp = h / 60.0;
+    let x = c * (1.0 - f64::abs((hp % 2.0) - 1.0));
+    let (r, g, b) = match hp as u32 {
+        0 => (c, x, 0.0),
+        1 => (x, c, 0.0),
+        2 => (0.0, c, x),
+        3 => (0.0, x, c),
+        4 => (x, 0.0, c),
+        _ => (c, 0.0, x),
+    };
+    let m = l - c / 2.0;
+    let channel = |value: f64| ((value + m).clamp(0.0, 1.0) * 255.0).round() as u32;
+    format!("#{:02x}{:02x}{:02x}", channel(r), channel(g), channel(b))
 }
 
 pub fn open_session(conn: &Connection, app_key: &str, locked: bool) -> Result<i64, String> {
@@ -377,12 +439,47 @@ pub fn get_today(conn: &Connection) -> Result<Value, String> {
     let end = day_start_ms(tomorrow, &zone);
     let slices = load_slices(conn, start, end)?;
     let totals = totals_of(&slices);
+    let mut colors: BTreeMap<String, String> = BTreeMap::new();
+    for slice in &slices {
+        if slice.locked != 0 || colors.contains_key(&slice.app_key) {
+            continue;
+        }
+        if let Ok(color) = assign_color(conn, &slice.app_key) {
+            colors.insert(slice.app_key.clone(), color);
+        }
+    }
     let mut apps: Vec<Value> = totals
         .by_app
         .iter()
-        .map(|(key, (name, ms))| json!({ "app_key": key, "product_name": name, "active_ms": ms }))
+        .map(|(key, (name, ms))| {
+            json!({
+                "app_key": key,
+                "product_name": name,
+                "active_ms": ms,
+                "color": colors.get(key).cloned().unwrap_or_else(|| "#c5cdd8".to_string()),
+            })
+        })
         .collect();
     apps.sort_by(|a, b| b["active_ms"].as_i64().cmp(&a["active_ms"].as_i64()));
+    let mut spans = Vec::new();
+    for slice in &slices {
+        if slice.locked != 0 {
+            continue;
+        }
+        let span = (slice.ended_at - slice.started_at).max(0);
+        let idle = slice.idle_ms.clamp(0, span);
+        let end = slice.ended_at - idle;
+        if end <= slice.started_at {
+            continue;
+        }
+        spans.push(json!({
+            "app_key": slice.app_key,
+            "product_name": slice.product_name,
+            "color": colors.get(&slice.app_key).cloned().unwrap_or_else(|| "#c5cdd8".to_string()),
+            "start": slice.started_at,
+            "end": end,
+        }));
+    }
     let current = conn
         .query_row(
             "SELECT s.app_key, COALESCE(a.product_name, s.app_key)
@@ -400,6 +497,7 @@ pub fn get_today(conn: &Connection) -> Result<Value, String> {
         "idle_ms": totals.idle_ms,
         "locked_ms": totals.locked_ms,
         "apps": apps,
+        "spans": spans,
         "current": current,
     }))
 }

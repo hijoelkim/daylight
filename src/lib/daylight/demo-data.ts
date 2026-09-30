@@ -25,7 +25,7 @@ export type Reminder = {
 export type SampleApp = {
   name: string;
   minutes: number;
-  chip: string;
+  color: string;
 };
 
 export const sampleDayLabel = "Tue 29 Sep";
@@ -36,11 +36,20 @@ export const sampleSecondary = "1h 04m idle · 42m locked";
 export const emptyLine = "Leave it in the tray. Come back this evening.";
 
 export const sampleApps: SampleApp[] = [
-  { name: "Cursor", minutes: 88, chip: "bg-accent" },
-  { name: "Google Chrome", minutes: 54, chip: "bg-muted" },
-  { name: "Windows Explorer", minutes: 22, chip: "bg-warn" },
-  { name: "Spotify", minutes: 18, chip: "bg-accent/70" },
-  { name: "Windows Terminal", minutes: 10, chip: "bg-warn/60" },
+  { name: "Cursor", minutes: 88, color: "#e8dcc8" },
+  { name: "Google Chrome", minutes: 54, color: "#c4924a" },
+  { name: "Windows Explorer", minutes: 22, color: "#7ea38a" },
+  { name: "Spotify", minutes: 18, color: "#8aa4c5" },
+  { name: "Windows Terminal", minutes: 10, color: "#c58a7a" },
+];
+
+export const sampleMarks = [
+  { t0: 0.08, t1: 0.2, color: "#c4924a" },
+  { t0: 0.24, t1: 0.46, color: "#e8dcc8" },
+  { t0: 0.5, t1: 0.58, color: "#7ea38a" },
+  { t0: 0.62, t1: 0.74, color: "#e8dcc8" },
+  { t0: 0.78, t1: 0.86, color: "#8aa4c5" },
+  { t0: 0.9, t1: 0.96, color: "#c58a7a" },
 ];
 
 export const sampleWeek = [

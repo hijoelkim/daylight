@@ -11,6 +11,7 @@ import {
   cities,
   parseLatLon,
   sampleApps,
+  sampleMarks,
   sampleDayLabel,
   sampleDaylightPct,
   sampleScreen,
@@ -82,7 +83,7 @@ function Today() {
 
         <section className="mt-8" aria-label="Day arc">
           {place && times ? (
-            <SunArc rise={rise} set={set} noonT={noonT} nowT={nowT} />
+            <SunArc rise={rise} set={set} noonT={noonT} nowT={nowT} marks={demo.cleared ? [] : sampleMarks} />
           ) : (
             <p className="text-muted">
               {place ? "No sunrise or sunset for this place today." : "Use decimal degrees."}

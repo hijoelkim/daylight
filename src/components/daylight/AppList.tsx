@@ -25,13 +25,13 @@ export function AppList({
         <ul className="mt-4 space-y-4">
           {apps.map((app) => (
             <li key={app.name} className="grid grid-cols-[0.75rem_1fr] gap-x-3">
-              <span className={`mt-1.5 size-2.5 ${app.chip}`} aria-hidden="true" />
+              <span className="mt-1.5 size-2.5" style={{ backgroundColor: app.color }} aria-hidden="true" />
               <div className="flex items-baseline justify-between gap-4">
                 <span>{app.name}</span>
                 <span className="font-mono text-sm tabular-nums text-muted">{formatMinutes(app.minutes)}</span>
               </div>
               <div className="col-start-2 mt-2 h-1 bg-bg-subtle" aria-hidden="true">
-                <div className="h-full bg-accent" style={{ width: `${(app.minutes / max) * 100}%` }} />
+                <div className="h-full" style={{ width: `${(app.minutes / max) * 100}%`, backgroundColor: app.color }} />
               </div>
             </li>
           ))}
