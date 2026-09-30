@@ -21,7 +21,7 @@ enum Phase {
     Up,
 }
 
-pub fn sync(conn: &Connection, now: i64, sunrise: Option<i64>, sunset: Option<i64>, polar: bool) {
+pub fn sync(conn: &Connection, now: i64, sunrise: Option<i64>, sunset: Option<i64>, polar: bool, active: bool) {
     if db::setting(conn, "auto_dim") != "1" {
         restore(conn);
         return;
@@ -32,43 +32,71 @@ pub fn sync(conn: &Connection, now: i64, sunrise: Option<i64>, sunset: Option<i6
     let (Some(sunrise), Some(sunset)) = (sunrise, sunset) else {
         return;
     };
-    match phase(now, sunrise, sunset) {
-        Phase::Day => {
-            let _ = db::set_setting(conn, "dim_phase", "day");
-            let _ = db::set_setting(conn, "dim_late", "");
-        }
+    let phase = phase(now, sunrise, sunset);
+    let name = match phase {
+        Phase::Day => "day",
+        Phase::Down => "down",
+        Phase::Night => "night",
+        Phase::Up => "up",
+    };
+    if db::setting(conn, "dim_phase") != name {
+        let _ = db::set_setting(conn, "dim_phase", name);
+    }
+    if !active {
+        return;
+    }
+    match phase {
+        Phase::Day => hold_day(conn, now),
         Phase::Down => {
-            let mark = sunset.to_string();
-            if db::setting(conn, "dim_mark") != mark {
-                if let Some(levels) = read_levels() {
-                    save_bases(conn, &levels);
-                    let _ = db::set_setting(conn, "dim_mark", &mark);
-                    let _ = db::set_setting(conn, "dim_late", "");
-                }
-            }
+            remember_if_needed(conn);
             apply(conn, ramp(now - sunset, true));
-            let _ = db::set_setting(conn, "dim_phase", "down");
+            let _ = db::set_setting(conn, "dim_applied", "dim");
+        }
+        Phase::Night => {
+            remember_if_needed(conn);
+            apply(conn, ramp(HALF_MS, true));
+            let _ = db::set_setting(conn, "dim_applied", "dim");
         }
         Phase::Up => {
             if load_bases(conn).is_empty() {
                 return;
             }
-            let _ = db::set_setting(conn, "dim_late", "");
             apply(conn, ramp(now - sunrise, false));
-            let _ = db::set_setting(conn, "dim_phase", "up");
+            let done = now - sunrise >= HALF_MS;
+            let _ = db::set_setting(conn, "dim_applied", if done { "day" } else { "dim" });
         }
-        Phase::Night => {
-            if load_bases(conn).is_empty() {
-                if let Some(levels) = read_levels() {
-                    save_bases(conn, &levels);
-                    let _ = db::set_setting(conn, "dim_late", &now.to_string());
-                }
-            }
-            let late = db::setting(conn, "dim_late").parse::<i64>().unwrap_or(0);
-            let elapsed = if late > 0 { now - late } else { HALF_MS };
-            apply(conn, ramp(elapsed, true));
-            let _ = db::set_setting(conn, "dim_phase", "night");
+    }
+}
+
+fn hold_day(conn: &Connection, now: i64) {
+    if db::setting(conn, "dim_applied") == "dim" && !load_bases(conn).is_empty() {
+        let bases = load_bases(conn);
+        if write_levels(&bases) {
+            *LAST.lock().unwrap_or_else(|err| err.into_inner()) = Some(bases);
+            let _ = db::set_setting(conn, "dim_applied", "day");
         }
+        return;
+    }
+    let sampled = db::setting(conn, "dim_sample_at").parse::<i64>().unwrap_or(0);
+    if !load_bases(conn).is_empty() && now.saturating_sub(sampled) < 60_000 {
+        return;
+    }
+    if let Some(levels) = read_levels() {
+        save_bases(conn, &levels);
+        let _ = db::set_setting(conn, "dim_sample_at", &now.to_string());
+        let _ = db::set_setting(conn, "dim_applied", "day");
+    }
+}
+
+fn remember_if_needed(conn: &Connection) {
+    if !load_bases(conn).is_empty() {
+        return;
+    }
+    if db::setting(conn, "dim_applied") == "dim" {
+        return;
+    }
+    if let Some(levels) = read_levels() {
+        save_bases(conn, &levels);
     }
 }
 
@@ -112,19 +140,22 @@ fn apply(conn: &Connection, target: impl Fn(u32) -> u32) {
 }
 
 fn restore(conn: &Connection) {
+    let applied = db::setting(conn, "dim_applied");
     let phase = db::setting(conn, "dim_phase");
-    if phase.is_empty() && db::setting(conn, "dim_bases").is_empty() {
+    if applied.is_empty() && phase.is_empty() && db::setting(conn, "dim_bases").is_empty() {
         return;
     }
-    if phase != "day" {
+    if applied == "dim" {
         let bases = load_bases(conn);
         if !bases.is_empty() {
             let _ = write_levels(&bases);
         }
     }
     let _ = db::set_setting(conn, "dim_phase", "");
+    let _ = db::set_setting(conn, "dim_applied", "");
     let _ = db::set_setting(conn, "dim_mark", "");
     let _ = db::set_setting(conn, "dim_late", "");
+    let _ = db::set_setting(conn, "dim_sample_at", "");
     let _ = db::set_setting(conn, "dim_bases", "");
     *LAST.lock().unwrap_or_else(|err| err.into_inner()) = None;
 }

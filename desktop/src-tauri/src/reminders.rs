@@ -132,7 +132,14 @@ fn tick(app: &AppHandle, db: &Arc<Mutex<Connection>>) {
     let local_hm = local_hm(now, &tz);
     let foreground = current_app(&conn);
     let day = sun::compute(now, lat, lon, &tz);
-    crate::brightness::sync(&conn, now, day.sunrise_ms, day.sunset_ms, day.polar.is_some());
+    crate::brightness::sync(
+        &conn,
+        now,
+        day.sunrise_ms,
+        day.sunset_ms,
+        day.polar.is_some(),
+        present && !paused,
+    );
     let rows = load_enabled(&conn).unwrap_or_default();
     let mut progress = load_progress(&conn);
     let mut due: Vec<Row> = Vec::new();

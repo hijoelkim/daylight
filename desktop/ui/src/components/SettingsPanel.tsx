@@ -65,7 +65,7 @@ export function SettingsPanel({
           <details className="max-w-sm text-right">
             <summary className="cursor-pointer text-sm text-muted">What auto dim does</summary>
             <p className="mt-2 text-pretty text-sm leading-relaxed text-muted">
-              From sunset, the screen dims by 30 over 30 minutes. From sunrise, it returns to your brightness over 30 minutes.
+              From sunset, the screen dims by 30 over 30 minutes. From sunrise, it returns to your brightness over 30 minutes. The clock keeps moving while you are away, so the middle of the day is never left dim.
             </p>
           </details>
         </span>
