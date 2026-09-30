@@ -28,6 +28,7 @@
     "allow-get-settings",
     "allow-set-settings",
     "allow-export-data",
+    "allow-apply-update",
     "allow-wipe-data",
     "allow-pause",
     "allow-resume"

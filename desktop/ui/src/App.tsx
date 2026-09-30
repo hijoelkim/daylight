@@ -218,6 +218,15 @@ export function App() {
                   onPause={() => {
                     void invoke(today?.paused ? "resume" : "pause").then(() => loadLive());
                   }}
+                  onUpdate={() => {
+                    setNote("Checking for updates…");
+                    void invoke<{ state: string; version: string; latest?: string }>("apply_update")
+                      .then((result) => {
+                        if (result.state === "current") setNote(`Up to date. ${result.version}.`);
+                        else setNote(`Installing ${result.latest}. Daylight will close and reopen.`);
+                      })
+                      .catch((err: unknown) => setNote(err instanceof Error ? err.message : String(err)));
+                  }}
                 />
               ) : null}
             </div>

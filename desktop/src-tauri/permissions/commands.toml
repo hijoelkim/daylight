@@ -69,6 +69,11 @@ description = "Stub."
 commands.allow = ["export_data"]
 
 [[permission]]
+identifier = "allow-apply-update"
+description = "Check GitHub for a newer installer and run it."
+commands.allow = ["apply_update"]
+
+[[permission]]
 identifier = "allow-wipe-data"
 description = "Stub."
 commands.allow = ["wipe_data"]

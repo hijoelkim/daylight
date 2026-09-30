@@ -20,6 +20,7 @@ export function SettingsPanel({
   onExport,
   onWipe,
   onPause,
+  onUpdate,
 }: {
   settings: LiveSettings;
   paused: boolean;
@@ -27,6 +28,7 @@ export function SettingsPanel({
   onExport: () => void;
   onWipe: () => void;
   onPause: () => void;
+  onUpdate: () => void;
 }) {
   return (
     <div>
@@ -64,6 +66,9 @@ export function SettingsPanel({
       <div className="mt-6 flex flex-wrap gap-4">
         <button type="button" className="inline-flex min-h-11 items-center text-sm text-fg" onClick={onPause}>
           {paused ? "Resume recording" : "Pause recording"}
+        </button>
+        <button type="button" className="inline-flex min-h-11 items-center text-sm text-fg" onClick={onUpdate}>
+          Check for updates
         </button>
         <button type="button" className="inline-flex min-h-11 items-center text-sm text-fg" onClick={onExport}>
           Export

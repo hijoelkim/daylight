@@ -15,6 +15,7 @@ mod locate;
 mod reminders;
 mod sun;
 mod tracker;
+mod update;
 
 /// `settings.json` is the first-run flag. Missing → show the window. Present and accepted → tray only.
 const SETTINGS_FILE: &str = "settings.json";
@@ -308,6 +309,11 @@ fn set_settings(app: AppHandle, settings: Option<serde_json::Value>) -> Result<(
 }
 
 #[tauri::command]
+fn apply_update(app: AppHandle) -> Result<serde_json::Value, String> {
+    update::apply_update(&app)
+}
+
+#[tauri::command]
 fn export_data(app: AppHandle) -> Result<String, String> {
     let path = with_db(&app, db::export_data)?;
     if let Some(dir) = path.parent() {
@@ -447,6 +453,7 @@ pub fn run() {
             get_settings,
             set_settings,
             export_data,
+            apply_update,
             wipe_data,
             pause,
             resume
