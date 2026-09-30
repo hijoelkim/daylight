@@ -11,8 +11,9 @@ use serde_json::{json, Map, Value};
 const DEFAULTS: &[(&str, &str)] = &[
     ("idle_threshold_s", "60"),
     ("retain_days", "90"),
-    ("record_titles", "0"),
-    ("start_with_windows", "0"),
+    ("record_titles", "1"),
+    ("start_with_windows", "1"),
+    ("dim_by", "50"),
     ("lat", "-33.8688"),
     ("lon", "151.2093"),
     ("tz", "Australia/Sydney"),
@@ -129,6 +130,15 @@ pub fn migrate(conn: &Connection) -> Result<(), String> {
     conn.pragma_update(None, "user_version", 1).map_err(|err| err.to_string())?;
     rollup_past_days(conn)?;
     seed_sun_reminders(conn)?;
+    if setting(conn, "prefs_on") != "1" {
+        set_setting(conn, "record_titles", "1")?;
+        set_setting(conn, "start_with_windows", "1")?;
+        set_setting(conn, "prefs_on", "1")?;
+    }
+    if setting(conn, "dim_by").is_empty() {
+        set_setting(conn, "dim_by", "50")?;
+    }
+    let _ = conn.execute("ALTER TABLE sessions ADD COLUMN title TEXT", []);
     Ok(())
 }
 
@@ -430,11 +440,11 @@ fn color_from_key(key: &str) -> String {
     format!("#{:02x}{:02x}{:02x}", channel(r), channel(g), channel(b))
 }
 
-pub fn open_session(conn: &Connection, app_key: &str, locked: bool) -> Result<i64, String> {
+pub fn open_session(conn: &Connection, app_key: &str, locked: bool, title: Option<&str>) -> Result<i64, String> {
     let now = now_ms();
     conn.execute(
-        "INSERT INTO sessions (app_key, started_at, ended_at, idle_ms, locked) VALUES (?1, ?2, NULL, 0, ?3)",
-        params![app_key, now, if locked { 1 } else { 0 }],
+        "INSERT INTO sessions (app_key, started_at, ended_at, idle_ms, locked, title) VALUES (?1, ?2, NULL, 0, ?3, ?4)",
+        params![app_key, now, if locked { 1 } else { 0 }, title.unwrap_or("")],
     )
     .map_err(|err| err.to_string())?;
     Ok(conn.last_insert_rowid())
@@ -518,12 +528,18 @@ pub fn get_today(conn: &Connection) -> Result<Value, String> {
     }
     let current = conn
         .query_row(
-            "SELECT s.app_key, COALESCE(a.product_name, s.app_key)
+            "SELECT s.app_key, COALESCE(a.product_name, s.app_key), COALESCE(s.title, '')
              FROM sessions s LEFT JOIN apps a ON a.app_key = s.app_key
              WHERE s.ended_at IS NULL AND s.locked = 0
              ORDER BY s.id DESC LIMIT 1",
             [],
-            |row| Ok(json!({ "app_key": row.get::<_, String>(0)?, "product_name": row.get::<_, String>(1)? })),
+            |row| {
+                Ok(json!({
+                    "app_key": row.get::<_, String>(0)?,
+                    "product_name": row.get::<_, String>(1)?,
+                    "title": row.get::<_, String>(2)?,
+                }))
+            },
         )
         .optional()
         .map_err(|err| err.to_string())?
@@ -661,6 +677,7 @@ pub fn apply_settings(conn: &Connection, patch: &Value) -> Result<(), String> {
             "idle_threshold_s" => value_number(value).clamp(30, 300).to_string(),
             "retain_days" => value_number(value).clamp(1, 3650).to_string(),
             "screen_budget_min" => value_number(value).clamp(0, 24 * 60).to_string(),
+            "dim_by" => value_number(value).clamp(1, 100).to_string(),
             "record_titles" | "start_with_windows" | "consented" | "hardcore" | "auto_dim" => {
                 if value_number(value) == 0 { "0" } else { "1" }.to_string()
             }
@@ -722,7 +739,7 @@ pub fn export_data(conn: &Connection) -> Result<PathBuf, String> {
     let body = json!({
         "exported_at": now_ms(),
         "apps": table(conn, "SELECT app_key, exe_name, product_name, category, color FROM apps")?,
-        "sessions": table(conn, "SELECT id, app_key, started_at, ended_at, idle_ms, locked FROM sessions")?,
+        "sessions": table(conn, "SELECT id, app_key, started_at, ended_at, idle_ms, locked, title FROM sessions")?,
         "daily_rollups": table(conn, "SELECT date, active_ms, idle_ms, locked_ms, daylight_ms, by_app_json FROM daily_rollups")?,
         "reminders": table(conn, "SELECT id, kind, title, body, interval_min, time_local, after_screen_min, app_key, sunset_offset_min, enabled, snooze_min FROM reminders")?,
         "reminder_log": table(conn, "SELECT id, reminder_id, fired_at, action FROM reminder_log")?,

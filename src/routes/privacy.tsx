@@ -17,7 +17,7 @@ const recorded = [
 const notCollected = [
   "Keystrokes, clipboard, screenshots, or the path after a site name",
   "Sites you only open briefly. Those stay inside the browser",
-  "Window titles, unless you turn that on",
+  "Window titles. Turn that off in Settings if you don't want them",
   "Anything to a server",
 ] as const;
 

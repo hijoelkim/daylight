@@ -16,7 +16,7 @@ export function AppList({
 }: {
   dateLabel: string;
   apps: LiveApp[];
-  current: { app_key: string; product_name: string } | null;
+  current: { app_key: string; product_name: string; title?: string } | null;
 }) {
   const max = Math.max(...apps.map((app) => app.active_ms), 1);
 
@@ -31,6 +31,7 @@ export function AppList({
       {current ? (
         <p className="mt-3 font-mono text-sm text-fg">
           Now · {current.product_name || current.app_key}
+          {current.title ? <span className="text-muted"> · {current.title}</span> : null}
         </p>
       ) : null}
       {apps.length === 0 ? (

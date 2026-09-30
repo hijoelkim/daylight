@@ -280,7 +280,7 @@ unsafe fn run_loop(db: Arc<Mutex<Connection>>, rx: mpsc::Receiver<Cmd>) {
             if lock && !LOCKED.swap(true, Ordering::SeqCst) {
                 if let Ok(conn) = db.lock() {
                     let _ = db::close_open_sessions(&conn);
-                    if let Ok(id) = db::open_session(&conn, "lock", true) {
+                    if let Ok(id) = db::open_session(&conn, "lock", true, None) {
                         OPEN_ID.store(id, Ordering::SeqCst);
                     }
                 }
@@ -432,9 +432,11 @@ fn sample_foreground(
             );
         }
     }
-    if db::record_titles(&conn) {
-        let _dropped = fg.title.filter(|title| !title_is_sensitive(title));
-    }
+    let title = if db::record_titles(&conn) {
+        fg.title.as_deref().filter(|title| !title_is_sensitive(title))
+    } else {
+        None
+    };
 
     let current = open_id.load(Ordering::SeqCst);
     let same = current != 0 && open_key_matches(&conn, current, &app_key);
@@ -445,7 +447,7 @@ fn sample_foreground(
         return;
     }
     let _ = db::close_open_sessions(&conn);
-    match db::open_session(&conn, &app_key, false) {
+    match db::open_session(&conn, &app_key, false, title) {
         Ok(id) => {
             open_id.store(id, Ordering::SeqCst);
             last_event.store(now, Ordering::SeqCst);

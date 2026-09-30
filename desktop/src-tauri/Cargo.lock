@@ -660,7 +660,7 @@ dependencies = [
 
 [[package]]
 name = "daylight"
-version = "0.1.15"
+version = "0.1.16"
 dependencies = [
  "jiff",
  "notify-rust",

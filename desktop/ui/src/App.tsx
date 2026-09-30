@@ -46,14 +46,15 @@ const CONSENT =
 const emptySettings: LiveSettings = {
   idle_threshold_s: "60",
   retain_days: "90",
-  record_titles: "0",
-  start_with_windows: "0",
+  record_titles: "1",
+  start_with_windows: "1",
   city: "",
   lat: "-33.8688",
   lon: "151.2093",
   screen_budget_min: "0",
   hardcore: "0",
   auto_dim: "0",
+  dim_by: "50",
 };
 
 export function App() {

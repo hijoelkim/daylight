@@ -509,6 +509,11 @@ pub fn run() {
             log_line("start");
             let shared = Arc::new(Mutex::new(db::open().map_err(|err| err.to_string())?));
             app.manage(Db(Arc::clone(&shared)));
+            let autostart = shared
+                .lock()
+                .map(|conn| db::setting(&conn, "start_with_windows") == "1")
+                .unwrap_or(false);
+            sync_autostart(app.handle(), autostart);
 
             let open = MenuItem::with_id(app, "open", "Open", true, None::<&str>)?;
             let pause = MenuItem::with_id(app, "pause", "Pause recording", true, None::<&str>)?;

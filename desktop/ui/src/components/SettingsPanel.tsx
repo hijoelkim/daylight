@@ -14,6 +14,7 @@ export type LiveSettings = {
   screen_budget_min: string;
   hardcore: string;
   auto_dim: string;
+  dim_by: string;
 };
 
 export function SettingsPanel({
@@ -65,9 +66,22 @@ export function SettingsPanel({
           <details className="max-w-sm text-right">
             <summary className="cursor-pointer text-sm text-muted">What auto dim does</summary>
             <p className="mt-2 text-pretty text-sm leading-relaxed text-muted">
-              From sunset, the screen dims by 30 over 30 minutes. From sunrise, it returns to your brightness over 30 minutes. The clock keeps moving while you are away, so the middle of the day is never left dim.
+              From sunset, the screen dims by the amount below over 30 minutes. From sunrise, it returns to your brightness over 30 minutes. The clock keeps moving while you are away, so the middle of the day is never left dim.
             </p>
           </details>
+        </span>
+      </SettingRow>
+      <SettingRow label="Dim by">
+        <span className="flex items-center gap-2">
+          <input
+            type="number"
+            min={1}
+            max={100}
+            className={`${fieldClass} w-24 text-right font-mono`}
+            value={settings.dim_by || "50"}
+            onChange={(event) => onChange({ dim_by: event.target.value })}
+          />
+          <span className="font-mono text-sm text-muted">%</span>
         </span>
       </SettingRow>
       <SettingRow label="Idle threshold">

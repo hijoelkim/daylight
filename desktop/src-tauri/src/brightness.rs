@@ -49,19 +49,19 @@ pub fn sync(conn: &Connection, now: i64, sunrise: Option<i64>, sunset: Option<i6
         Phase::Day => hold_day(conn, now),
         Phase::Down => {
             remember_if_needed(conn);
-            apply(conn, ramp(now - sunset, true));
+            apply(conn, ramp(now - sunset, true, dim_by(conn)));
             let _ = db::set_setting(conn, "dim_applied", "dim");
         }
         Phase::Night => {
             remember_if_needed(conn);
-            apply(conn, ramp(HALF_MS, true));
+            apply(conn, ramp(HALF_MS, true, dim_by(conn)));
             let _ = db::set_setting(conn, "dim_applied", "dim");
         }
         Phase::Up => {
             if load_bases(conn).is_empty() {
                 return;
             }
-            apply(conn, ramp(now - sunrise, false));
+            apply(conn, ramp(now - sunrise, false, dim_by(conn)));
             let done = now - sunrise >= HALF_MS;
             let _ = db::set_setting(conn, "dim_applied", if done { "day" } else { "dim" });
         }
@@ -112,13 +112,17 @@ fn phase(now: i64, sunrise: i64, sunset: i64) -> Phase {
     }
 }
 
-fn ramp(elapsed: i64, down: bool) -> impl Fn(u32) -> u32 {
+fn ramp(elapsed: i64, down: bool, amount: u32) -> impl Fn(u32) -> u32 {
     let t = (elapsed as f64 / HALF_MS as f64).clamp(0.0, 1.0);
     move |base| {
-        let low = base.saturating_sub(30);
+        let low = base.saturating_sub(amount);
         let (from, to) = if down { (base, low) } else { (low, base) };
         (f64::from(from) + (f64::from(to) - f64::from(from)) * t).round() as u32
     }
+}
+
+fn dim_by(conn: &Connection) -> u32 {
+    db::setting(conn, "dim_by").parse::<u32>().unwrap_or(50).clamp(1, 100)
 }
 
 fn apply(conn: &Connection, target: impl Fn(u32) -> u32) {
