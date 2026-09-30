@@ -622,6 +622,7 @@ pub fn apply_settings(conn: &Connection, patch: &Value) -> Result<(), String> {
         let stored = match key.as_str() {
             "idle_threshold_s" => value_number(value).clamp(30, 300).to_string(),
             "retain_days" => value_number(value).clamp(1, 3650).to_string(),
+            "screen_budget_min" => value_number(value).clamp(0, 24 * 60).to_string(),
             "record_titles" | "start_with_windows" | "consented" => {
                 if value_number(value) == 0 { "0" } else { "1" }.to_string()
             }
@@ -636,6 +637,9 @@ pub fn apply_settings(conn: &Connection, patch: &Value) -> Result<(), String> {
             continue;
         }
         set_setting(conn, key, &stored)?;
+        if key == "screen_budget_min" {
+            set_setting(conn, "budget_marks", "")?;
+        }
     }
     Ok(())
 }

@@ -238,6 +238,7 @@ fn tick(app: &AppHandle, db: &Arc<Mutex<Connection>>) {
         }
     }
     save_progress(&conn, &progress);
+    let budget = budget_notice(&conn, &local_date);
     drop(conn);
     let Ok(conn) = db.lock() else { return };
     for row in due {
@@ -247,6 +248,53 @@ fn tick(app: &AppHandle, db: &Arc<Mutex<Connection>>) {
             let _ = conn.execute("UPDATE reminders SET enabled = 0 WHERE id = ?1", [row.id]);
         }
     }
+    if let Some((title, body)) = budget {
+        toast(app, &title, &body, 0);
+    }
+}
+
+fn budget_notice(conn: &Connection, local_date: &str) -> Option<(String, String)> {
+    let minutes: i64 = db::setting(conn, "screen_budget_min").parse().unwrap_or(0);
+    if minutes <= 0 {
+        return None;
+    }
+    let active = db::get_today(conn).ok()?.get("active_ms")?.as_i64()?;
+    let used = active as f64 / (minutes as f64 * 60_000.0);
+    let mark = if used >= 0.9 {
+        "ten"
+    } else if used >= 2.0 / 3.0 {
+        "two"
+    } else if used >= 1.0 / 3.0 {
+        "third"
+    } else {
+        return None;
+    };
+    let stored = db::setting(conn, "budget_marks");
+    let (day, marks) = stored.split_once('|').unwrap_or(("", ""));
+    let already = if day == local_date { marks } else { "" };
+    let rank = |name: &str| match name {
+        "ten" => 3,
+        "two" => 2,
+        "third" => 1,
+        _ => 0,
+    };
+    let highest = already.split(',').map(rank).max().unwrap_or(0);
+    if rank(mark) <= highest {
+        return None;
+    }
+    let mut next = Vec::new();
+    for level in ["third", "two", "ten"] {
+        if rank(level) <= rank(mark) {
+            next.push(level);
+        }
+    }
+    db::set_setting(conn, "budget_marks", &format!("{local_date}|{}", next.join(","))).ok()?;
+    let (title, body) = match mark {
+        "ten" => ("10% left", "A tenth of today's screen time is left."),
+        "two" => ("Two thirds gone", "Two thirds of today's screen time is used."),
+        _ => ("A third gone", "A third of today's screen time is used."),
+    };
+    Some((title.to_string(), body.to_string()))
 }
 
 fn fire(app: &AppHandle, conn: &Connection, row: &Row, action: &str) {

@@ -11,6 +11,7 @@ export type LiveSettings = {
   city: string;
   lat: string;
   lon: string;
+  screen_budget_min: string;
 };
 
 export function SettingsPanel({
@@ -32,6 +33,9 @@ export function SettingsPanel({
 }) {
   return (
     <div>
+      <SettingRow label="Maximum screen time">
+        <BudgetFields minutes={Number(settings.screen_budget_min) || 0} onChange={(minutes) => onChange({ screen_budget_min: String(minutes) })} />
+      </SettingRow>
       <SettingRow label="Idle threshold">
         <span className="flex items-center gap-2">
           <input type="number" min={30} max={300} className={`${fieldClass} w-24 text-right font-mono`} value={settings.idle_threshold_s} onChange={(event) => onChange({ idle_threshold_s: event.target.value })} />
@@ -78,6 +82,33 @@ export function SettingsPanel({
         </button>
       </div>
     </div>
+  );
+}
+
+function BudgetFields({ minutes, onChange }: { minutes: number; onChange: (minutes: number) => void }) {
+  const hours = Math.floor(Math.max(0, minutes) / 60);
+  const rest = Math.max(0, minutes) % 60;
+  return (
+    <span className="flex items-center gap-2">
+      <input
+        type="number"
+        min={0}
+        max={24}
+        className={`${fieldClass} w-20 text-right font-mono`}
+        value={hours}
+        onChange={(event) => onChange(Math.min(24, Math.max(0, Number(event.target.value) || 0)) * 60 + rest)}
+      />
+      <span className="font-mono text-sm text-muted">h</span>
+      <input
+        type="number"
+        min={0}
+        max={59}
+        className={`${fieldClass} w-20 text-right font-mono`}
+        value={rest}
+        onChange={(event) => onChange(hours * 60 + Math.min(59, Math.max(0, Number(event.target.value) || 0)))}
+      />
+      <span className="font-mono text-sm text-muted">m</span>
+    </span>
   );
 }
 

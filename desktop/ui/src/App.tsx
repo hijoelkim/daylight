@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { AppList, type LiveApp } from "./components/AppList";
 import { DayMeter } from "./components/DayMeter";
 import { ReminderEditor, type ReminderRow } from "./components/ReminderEditor";
+import { ScreenBattery } from "./components/ScreenBattery";
 import { SettingsPanel, type LiveSettings } from "./components/SettingsPanel";
 import { SunArc, type ArcMark } from "./components/SunArc";
 import { WeekChart, type WeekDay } from "./components/WeekChart";
@@ -46,6 +47,7 @@ const emptySettings: LiveSettings = {
   city: "",
   lat: "-33.8688",
   lon: "151.2093",
+  screen_budget_min: "0",
 };
 
 export function App() {
@@ -188,6 +190,7 @@ export function App() {
               empty={empty}
               polar={polar}
             />
+            <ScreenBattery usedMs={today?.active_ms ?? 0} budgetMin={Number(settings.screen_budget_min) || 0} />
           </section>
           <AppList dateLabel={todayLabel()} apps={today?.apps ?? []} current={today?.current ?? null} />
           <section className="mt-12" aria-label="More">
