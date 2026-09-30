@@ -499,6 +499,8 @@ pub fn get_today(conn: &Connection) -> Result<Value, String> {
         "apps": apps,
         "spans": spans,
         "current": current,
+        "hardcore_streak": setting(conn, "hardcore_streak").parse::<i64>().unwrap_or(0),
+        "hardcore_broken": setting(conn, "hardcore_broken") == "1",
     }))
 }
 
@@ -623,7 +625,7 @@ pub fn apply_settings(conn: &Connection, patch: &Value) -> Result<(), String> {
             "idle_threshold_s" => value_number(value).clamp(30, 300).to_string(),
             "retain_days" => value_number(value).clamp(1, 3650).to_string(),
             "screen_budget_min" => value_number(value).clamp(0, 24 * 60).to_string(),
-            "record_titles" | "start_with_windows" | "consented" => {
+            "record_titles" | "start_with_windows" | "consented" | "hardcore" => {
                 if value_number(value) == 0 { "0" } else { "1" }.to_string()
             }
             "lat" | "lon" => value.as_f64().or_else(|| value.as_str().and_then(|s| s.parse().ok())).map(|n| n.to_string()).unwrap_or_default(),

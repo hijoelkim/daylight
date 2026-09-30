@@ -238,9 +238,20 @@ fn tick(app: &AppHandle, db: &Arc<Mutex<Connection>>) {
         }
     }
     save_progress(&conn, &progress);
-    let budget = budget_notice(&conn, &local_date);
+    let hardcore = db::setting(&conn, "hardcore") == "1";
+    let mut sleep = false;
+    if hardcore {
+        roll_hardcore_day(&conn, &local_date);
+        sleep = enforce_hardcore(&conn);
+    }
+    let budget = budget_notice(&conn, &local_date, hardcore && is_daytime(now, lat, lon, &tz));
     drop(conn);
-    let Ok(conn) = db.lock() else { return };
+    let Ok(conn) = db.lock() else {
+        if sleep {
+            sleep_computer();
+        }
+        return;
+    };
     for row in due {
         let action = if row.kind == "once" { "once" } else { "fired" };
         fire(app, &conn, &row, action);
@@ -251,16 +262,21 @@ fn tick(app: &AppHandle, db: &Arc<Mutex<Connection>>) {
     if let Some((title, body)) = budget {
         toast(app, &title, &body, 0);
     }
+    if sleep {
+        sleep_computer();
+    }
 }
 
-fn budget_notice(conn: &Connection, local_date: &str) -> Option<(String, String)> {
+fn budget_notice(conn: &Connection, local_date: &str, warn_at_two: bool) -> Option<(String, String)> {
     let minutes: i64 = db::setting(conn, "screen_budget_min").parse().unwrap_or(0);
     if minutes <= 0 {
         return None;
     }
     let active = db::get_today(conn).ok()?.get("active_ms")?.as_i64()?;
     let used = active as f64 / (minutes as f64 * 60_000.0);
-    let mark = if used >= 0.9 {
+    let mark = if warn_at_two && used >= 0.98 {
+        "low"
+    } else if !warn_at_two && used >= 0.9 {
         "ten"
     } else if used >= 2.0 / 3.0 {
         "two"
@@ -273,6 +289,7 @@ fn budget_notice(conn: &Connection, local_date: &str) -> Option<(String, String)
     let (day, marks) = stored.split_once('|').unwrap_or(("", ""));
     let already = if day == local_date { marks } else { "" };
     let rank = |name: &str| match name {
+        "low" => 4,
         "ten" => 3,
         "two" => 2,
         "third" => 1,
@@ -282,19 +299,92 @@ fn budget_notice(conn: &Connection, local_date: &str) -> Option<(String, String)
     if rank(mark) <= highest {
         return None;
     }
+    let levels = if warn_at_two {
+        ["third", "two", "low"]
+    } else {
+        ["third", "two", "ten"]
+    };
     let mut next = Vec::new();
-    for level in ["third", "two", "ten"] {
+    for level in levels {
         if rank(level) <= rank(mark) {
             next.push(level);
         }
     }
     db::set_setting(conn, "budget_marks", &format!("{local_date}|{}", next.join(","))).ok()?;
     let (title, body) = match mark {
+        "low" => ("2% left", "Two percent of today's screen time is left."),
         "ten" => ("10% left", "A tenth of today's screen time is left."),
         "two" => ("Two thirds gone", "Two thirds of today's screen time is used."),
         _ => ("A third gone", "A third of today's screen time is used."),
     };
     Some((title.to_string(), body.to_string()))
+}
+
+fn roll_hardcore_day(conn: &Connection, today: &str) {
+    if db::setting(conn, "hardcore_day") == today {
+        return;
+    }
+    let yesterday = previous_day(today).unwrap_or_default();
+    let continued = db::setting(conn, "hardcore_day") == yesterday && db::setting(conn, "hardcore_broken") != "1";
+    let streak: i64 = db::setting(conn, "hardcore_streak").parse().unwrap_or(0);
+    let next = if continued { streak + 1 } else { 0 };
+    let _ = db::set_setting(conn, "hardcore_streak", &next.to_string());
+    let _ = db::set_setting(conn, "hardcore_day", today);
+    let _ = db::set_setting(conn, "hardcore_broken", "0");
+    let _ = db::set_setting(conn, "hardcore_sleep_ms", "");
+}
+
+fn enforce_hardcore(conn: &Connection) -> bool {
+    let minutes: i64 = db::setting(conn, "screen_budget_min").parse().unwrap_or(0);
+    if minutes <= 0 {
+        return false;
+    }
+    let Some(active) = db::get_today(conn).ok().and_then(|value| value.get("active_ms")?.as_i64()) else {
+        return false;
+    };
+    let budget_ms = minutes * 60_000;
+    let slept = db::setting(conn, "hardcore_sleep_ms");
+    if slept.is_empty() {
+        if active >= budget_ms {
+            let _ = db::set_setting(conn, "hardcore_sleep_ms", &active.to_string());
+            return true;
+        }
+        return false;
+    }
+    let slept_at: i64 = slept.parse().unwrap_or(active);
+    if active > slept_at + 30_000 && db::setting(conn, "hardcore_broken") != "1" {
+        let _ = db::set_setting(conn, "hardcore_broken", "1");
+        let _ = db::set_setting(conn, "hardcore_streak", "0");
+    }
+    false
+}
+
+fn is_daytime(now: i64, lat: f64, lon: f64, tz: &str) -> bool {
+    let day = sun::compute(now, lat, lon, tz);
+    match day.polar {
+        Some(Polar::Up) => true,
+        Some(Polar::Down) => false,
+        None => match (day.sunrise_ms, day.sunset_ms) {
+            (Some(rise), Some(set)) => now >= rise && now < set,
+            _ => false,
+        },
+    }
+}
+
+fn previous_day(date: &str) -> Option<String> {
+    let parsed: jiff::civil::Date = date.parse().ok()?;
+    let prev = parsed.yesterday().ok()?;
+    Some(format!("{:04}-{:02}-{:02}", prev.year(), prev.month(), prev.day()))
+}
+
+fn sleep_computer() {
+    #[cfg(windows)]
+    {
+        use windows::Win32::System::Power::SetSuspendState;
+        unsafe {
+            let _ = SetSuspendState(false, true, false);
+        }
+    }
 }
 
 fn fire(app: &AppHandle, conn: &Connection, row: &Row, action: &str) {

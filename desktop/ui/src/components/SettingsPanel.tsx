@@ -12,6 +12,7 @@ export type LiveSettings = {
   lat: string;
   lon: string;
   screen_budget_min: string;
+  hardcore: string;
 };
 
 export function SettingsPanel({
@@ -35,6 +36,14 @@ export function SettingsPanel({
     <div>
       <SettingRow label="Maximum screen time">
         <BudgetFields minutes={Number(settings.screen_budget_min) || 0} onChange={(minutes) => onChange({ screen_budget_min: String(minutes) })} />
+      </SettingRow>
+      <SettingRow label="Hardcore mode">
+        <input
+          type="checkbox"
+          checked={settings.hardcore === "1"}
+          onChange={(event) => onChange({ hardcore: event.target.checked ? "1" : "0" })}
+          className="size-4 accent-fg"
+        />
       </SettingRow>
       <SettingRow label="Idle threshold">
         <span className="flex items-center gap-2">

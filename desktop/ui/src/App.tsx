@@ -23,6 +23,8 @@ type Today = {
   spans?: Span[];
   current: { app_key: string; product_name: string } | null;
   paused?: boolean;
+  hardcore_streak?: number;
+  hardcore_broken?: boolean;
 };
 
 type Sun = {
@@ -48,6 +50,7 @@ const emptySettings: LiveSettings = {
   lat: "-33.8688",
   lon: "151.2093",
   screen_budget_min: "0",
+  hardcore: "0",
 };
 
 export function App() {
@@ -191,6 +194,13 @@ export function App() {
               polar={polar}
             />
             <ScreenBattery usedMs={today?.active_ms ?? 0} budgetMin={Number(settings.screen_budget_min) || 0} />
+            {settings.hardcore === "1" ? (
+              <p className="mt-2 font-mono text-sm tabular-nums text-muted">
+                {today?.hardcore_broken
+                  ? "Hardcore streak reset"
+                  : `Hardcore streak · ${today?.hardcore_streak ?? 0} ${(today?.hardcore_streak ?? 0) === 1 ? "day" : "days"}`}
+              </p>
+            ) : null}
           </section>
           <AppList dateLabel={todayLabel()} apps={today?.apps ?? []} current={today?.current ?? null} />
           <section className="mt-12" aria-label="More">
