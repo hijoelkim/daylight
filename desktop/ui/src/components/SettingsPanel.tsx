@@ -50,7 +50,7 @@ export function SettingsPanel({
           <details className="max-w-sm text-right">
             <summary className="cursor-pointer text-sm text-muted">What hardcore mode does</summary>
             <p className="mt-2 text-pretty text-sm leading-relaxed text-muted">
-              Hardcore mode warns at 10% left, then again at 2%. When the battery reaches zero, the computer goes to sleep.
+              Hardcore mode warns at 10% left, then again at 2%. At zero it asks you to sleep, power off, or stay on in download mode. A keystroke in download mode resets the streak. Mouse movement does not.
             </p>
           </details>
         </span>

@@ -12,6 +12,7 @@ use crate::tracker;
 
 static STARTED: OnceLock<()> = OnceLock::new();
 static TOAST_LOGGED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+static ZERO_OPEN: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
 struct Row {
     id: i64,
@@ -269,17 +270,15 @@ fn tick(app: &AppHandle, db: &Arc<Mutex<Connection>>) {
     }
     save_progress(&conn, &progress);
     let hardcore = db::setting(&conn, "hardcore") == "1";
-    let mut sleep = false;
-    if hardcore {
+    let ask_zero = if hardcore {
         roll_hardcore_day(&conn, &local_date);
-        sleep = enforce_hardcore(&conn);
-    }
+        hardcore_step(&conn, &local_date)
+    } else {
+        false
+    };
     let budget = budget_notices(&conn, &local_date, hardcore);
     drop(conn);
     let Ok(conn) = db.lock() else {
-        if sleep {
-            sleep_computer();
-        }
         return;
     };
     for row in due {
@@ -292,8 +291,8 @@ fn tick(app: &AppHandle, db: &Arc<Mutex<Connection>>) {
     for (title, body) in budget {
         toast(app, &title, &body, 0);
     }
-    if sleep {
-        sleep_computer();
+    if ask_zero && !ZERO_OPEN.swap(true, std::sync::atomic::Ordering::SeqCst) && !zero_toast(app) {
+        ZERO_OPEN.store(false, std::sync::atomic::Ordering::SeqCst);
     }
 }
 
@@ -345,9 +344,11 @@ fn roll_hardcore_day(conn: &Connection, today: &str) {
     let _ = db::set_setting(conn, "hardcore_day", today);
     let _ = db::set_setting(conn, "hardcore_broken", "0");
     let _ = db::set_setting(conn, "hardcore_sleep_ms", "");
+    let _ = db::set_setting(conn, "hardcore_choice", "");
+    tracker::disarm_key_watch();
 }
 
-fn enforce_hardcore(conn: &Connection) -> bool {
+fn hardcore_step(conn: &Connection, local_date: &str) -> bool {
     let minutes: i64 = db::setting(conn, "screen_budget_min").parse().unwrap_or(0);
     if minutes <= 0 {
         return false;
@@ -356,20 +357,110 @@ fn enforce_hardcore(conn: &Connection) -> bool {
         return false;
     };
     let budget_ms = minutes * 60_000;
-    let slept = db::setting(conn, "hardcore_sleep_ms");
-    if slept.is_empty() {
-        if active >= budget_ms {
-            let _ = db::set_setting(conn, "hardcore_sleep_ms", &active.to_string());
-            return true;
-        }
+    if active < budget_ms {
         return false;
     }
-    let slept_at: i64 = slept.parse().unwrap_or(active);
-    if active > slept_at + 30_000 && db::setting(conn, "hardcore_broken") != "1" {
-        let _ = db::set_setting(conn, "hardcore_broken", "1");
-        let _ = db::set_setting(conn, "hardcore_streak", "0");
+    let choice = db::setting(conn, "hardcore_choice");
+    let (day, kind) = choice.split_once('|').unwrap_or(("", ""));
+    if day != local_date {
+        return true;
+    }
+    match kind {
+        "download" => {
+            tracker::keep_key_watch();
+            if tracker::take_keystroke() && db::setting(conn, "hardcore_broken") != "1" {
+                let _ = db::set_setting(conn, "hardcore_broken", "1");
+                let _ = db::set_setting(conn, "hardcore_streak", "0");
+            }
+        }
+        "sleep" => {
+            let slept_at: i64 = db::setting(conn, "hardcore_sleep_ms").parse().unwrap_or(active);
+            if active > slept_at + 30_000 && db::setting(conn, "hardcore_broken") != "1" {
+                let _ = db::set_setting(conn, "hardcore_broken", "1");
+                let _ = db::set_setting(conn, "hardcore_streak", "0");
+            }
+        }
+        _ => {}
     }
     false
+}
+
+fn zero_toast(app: &AppHandle) -> bool {
+    #[cfg(windows)]
+    {
+        let mut notification = notify_rust::Notification::new();
+        notification
+            .summary("Max screen time")
+            .body("Max screen time has been reached.")
+            .app_id("com.hijoelkim.daylight")
+            .timeout(notify_rust::Timeout::Never)
+            .urgency(notify_rust::Urgency::Critical);
+        notification.action("sleep", "Sleep the computer");
+        notification.action("power", "Power off");
+        notification.action("download", "Download mode");
+        let Ok(handle) = notification.show() else {
+            return false;
+        };
+        let app = app.clone();
+        std::thread::spawn(move || {
+            handle.wait_for_action(move |action| {
+                ZERO_OPEN.store(false, std::sync::atomic::Ordering::SeqCst);
+                match action {
+                    "sleep" => choose_sleep(&app),
+                    "power" => choose_power(&app),
+                    "download" => choose_download(&app),
+                    _ => {}
+                }
+            });
+        });
+        return true;
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = app;
+        false
+    }
+}
+
+fn choose_sleep(app: &AppHandle) {
+    let Some(db) = app.try_state::<crate::Db>() else { return };
+    let Ok(conn) = db.0.lock() else { return };
+    let active = db::get_today(&conn).ok().and_then(|value| value.get("active_ms")?.as_i64()).unwrap_or(0);
+    let day = day_key(&conn);
+    let _ = db::set_setting(&conn, "hardcore_choice", &format!("{day}|sleep"));
+    let _ = db::set_setting(&conn, "hardcore_sleep_ms", &active.to_string());
+    tracker::disarm_key_watch();
+    drop(conn);
+    sleep_computer();
+}
+
+fn choose_power(app: &AppHandle) {
+    let Some(db) = app.try_state::<crate::Db>() else { return };
+    let Ok(conn) = db.0.lock() else { return };
+    let day = day_key(&conn);
+    let _ = db::set_setting(&conn, "hardcore_choice", &format!("{day}|power"));
+    tracker::disarm_key_watch();
+    drop(conn);
+    power_off();
+}
+
+fn choose_download(app: &AppHandle) {
+    let Some(db) = app.try_state::<crate::Db>() else { return };
+    let Ok(conn) = db.0.lock() else { return };
+    let day = day_key(&conn);
+    let _ = db::set_setting(&conn, "hardcore_choice", &format!("{day}|download"));
+    drop(conn);
+    tracker::arm_key_watch();
+}
+
+fn day_key(conn: &Connection) -> String {
+    let tz = db::setting(conn, "tz");
+    let tz = if tz.is_empty() { "Australia/Sydney" } else { tz.as_str() };
+    local_date(db::now_ms(), tz)
+}
+
+fn power_off() {
+    let _ = std::process::Command::new("shutdown.exe").args(["/s", "/t", "0", "/f"]).spawn();
 }
 
 fn previous_day(date: &str) -> Option<String> {

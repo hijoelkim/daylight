@@ -12,6 +12,26 @@ const SAMPLE_MS: i64 = 1_000;
 
 static PAUSED: AtomicBool = AtomicBool::new(false);
 static BROWSER_FRONT: AtomicBool = AtomicBool::new(false);
+static WATCH_KEYS: AtomicBool = AtomicBool::new(false);
+static KEY_HIT: AtomicBool = AtomicBool::new(false);
+
+pub fn arm_key_watch() {
+    KEY_HIT.store(false, Ordering::SeqCst);
+    WATCH_KEYS.store(true, Ordering::SeqCst);
+}
+
+pub fn keep_key_watch() {
+    WATCH_KEYS.store(true, Ordering::SeqCst);
+}
+
+pub fn disarm_key_watch() {
+    WATCH_KEYS.store(false, Ordering::SeqCst);
+    KEY_HIT.store(false, Ordering::SeqCst);
+}
+
+pub fn take_keystroke() -> bool {
+    KEY_HIT.swap(false, Ordering::SeqCst)
+}
 static LOCKED: AtomicBool = AtomicBool::new(false);
 static STARTED: OnceLock<()> = OnceLock::new();
 static HWND_RAW: AtomicIsize = AtomicIsize::new(0);
@@ -139,6 +159,20 @@ unsafe fn run_loop(db: Arc<Mutex<Connection>>, rx: mpsc::Receiver<Cmd>) {
     static OPEN_ID: AtomicI64 = AtomicI64::new(0);
     static HOST_PID: AtomicU32 = AtomicU32::new(0);
 
+    unsafe extern "system" fn on_key(
+        code: i32,
+        wparam: WPARAM,
+        lparam: LPARAM,
+    ) -> LRESULT {
+        if code >= 0 && WATCH_KEYS.load(Ordering::SeqCst) {
+            let message = wparam.0 as u32;
+            if message == 0x0100 || message == 0x0104 {
+                KEY_HIT.store(true, Ordering::SeqCst);
+            }
+        }
+        windows::Win32::UI::WindowsAndMessaging::CallNextHookEx(None, code, wparam, lparam)
+    }
+
     unsafe extern "system" fn on_event(
         _hook: HWINEVENTHOOK,
         _event: u32,
@@ -217,6 +251,17 @@ unsafe fn run_loop(db: Arc<Mutex<Connection>>, rx: mpsc::Receiver<Cmd>) {
         crate::log_line("foreground hook failed; polling every 1s");
     }
     *HOOKS.lock().unwrap_or_else(|err| err.into_inner()) = hooks;
+    if let Ok(hook) = windows::Win32::UI::WindowsAndMessaging::SetWindowsHookExW(
+        windows::Win32::UI::WindowsAndMessaging::WH_KEYBOARD_LL,
+        Some(on_key),
+        None,
+        0,
+    ) {
+        if !hook.is_invalid() {
+            std::mem::forget(hook);
+            crate::log_line("keyboard watch installed");
+        }
+    }
 
     fn install(hooks: &Mutex<Vec<isize>>) {
         let flags = WINEVENT_OUTOFCONTEXT | WINEVENT_SKIPOWNPROCESS;
