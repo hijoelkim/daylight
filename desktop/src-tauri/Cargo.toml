@@ -1,6 +1,6 @@
 [package]
 name = "daylight"
-version = "0.1.9"
+version = "0.1.10"
 description = "Daylight tray shell"
 edition = "2021"
 rust-version = "1.77"
@@ -31,6 +31,9 @@ ureq = { version = "2.12", default-features = false, features = ["tls", "json"] 
 windows = { version = "0.62", features = [
   "Win32_Foundation",
   "Win32_Storage_FileSystem",
+  "Win32_System_Com",
+  "Win32_System_Ole",
+  "Win32_System_Variant",
   "Win32_System_Power",
   "Win32_System_RemoteDesktop",
   "Win32_System_SystemInformation",

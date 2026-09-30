@@ -54,6 +54,13 @@ pub fn migrate(conn: &Connection) -> Result<(), String> {
           category TEXT,
           color TEXT
         );
+        CREATE TABLE IF NOT EXISTS site_usage (
+          day TEXT NOT NULL,
+          browser TEXT NOT NULL,
+          host TEXT NOT NULL,
+          active_ms INTEGER NOT NULL DEFAULT 0,
+          PRIMARY KEY (day, browser, host)
+        );
         CREATE TABLE IF NOT EXISTS sessions (
           id INTEGER PRIMARY KEY,
           app_key TEXT NOT NULL,
@@ -316,6 +323,15 @@ pub fn rollup_past_days(conn: &Connection) -> Result<(), String> {
         [cutoff],
     )
     .map_err(|err| err.to_string())?;
+    let cutoff_day = jiff::Timestamp::from_millisecond(cutoff)
+        .ok()
+        .map(|stamp| stamp.to_string())
+        .unwrap_or_default();
+    if cutoff_day.len() >= 10 {
+        let day = &cutoff_day[..10];
+        conn.execute("DELETE FROM site_usage WHERE day < ?1", [day])
+            .map_err(|err| err.to_string())?;
+    }
     Ok(())
 }
 
@@ -722,6 +738,36 @@ fn table(conn: &Connection, sql: &str) -> Result<Value, String> {
 }
 
 pub fn wipe_data(conn: &Connection) -> Result<(), String> {
-    conn.execute_batch("DELETE FROM sessions; DELETE FROM daily_rollups;")
+    conn.execute_batch("DELETE FROM sessions; DELETE FROM daily_rollups; DELETE FROM site_usage;")
         .map_err(|err| err.to_string())
+}
+
+pub fn local_day(conn: &Connection) -> String {
+    let name = setting(conn, "tz");
+    let name = if name.is_empty() { "Australia/Sydney" } else { name.as_str() };
+    let Ok(zone) = jiff::tz::TimeZone::get(name) else {
+        return String::new();
+    };
+    let Ok(stamp) = jiff::Timestamp::from_millisecond(now_ms()) else {
+        return String::new();
+    };
+    let date = stamp.to_zoned(zone).date();
+    format!("{:04}-{:02}-{:02}", date.year(), date.month(), date.day())
+}
+
+pub const SITE_SPLIT_MS: i64 = 5 * 60_000;
+
+pub fn note_site(conn: &Connection, day: &str, browser: &str, host: &str, delta_ms: i64) -> Result<i64, String> {
+    conn.execute(
+        "INSERT INTO site_usage (day, browser, host, active_ms) VALUES (?1, ?2, ?3, ?4)
+         ON CONFLICT(day, browser, host) DO UPDATE SET active_ms = active_ms + excluded.active_ms",
+        params![day, browser, host, delta_ms.max(0)],
+    )
+    .map_err(|err| err.to_string())?;
+    conn.query_row(
+        "SELECT active_ms FROM site_usage WHERE day = ?1 AND browser = ?2 AND host = ?3",
+        params![day, browser, host],
+        |row| row.get(0),
+    )
+    .map_err(|err| err.to_string())
 }

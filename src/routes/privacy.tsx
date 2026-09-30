@@ -8,13 +8,16 @@ export const Route = createFileRoute("/privacy")({
 
 const recorded = [
   "Foreground app name and how long it was in front",
+  "A website's name, once that site has been in front for five minutes",
   "Idle and lock gaps, so away time is not screen time",
   "Sunrise/sunset from the location you set",
   "Reminders you wrote",
 ] as const;
 
 const notCollected = [
-  "Keystrokes, clipboard, screenshots, URLs, window titles (off unless you turn them on)",
+  "Keystrokes, clipboard, screenshots, or the path after a site name",
+  "Sites you only open briefly. Those stay inside the browser",
+  "Window titles, unless you turn that on",
   "Anything to a server",
 ] as const;
 

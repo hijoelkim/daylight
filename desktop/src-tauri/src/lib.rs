@@ -10,6 +10,7 @@ use tauri::menu::{Menu, MenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{AppHandle, Manager, WindowEvent, Wry};
 
+mod browser;
 mod db;
 mod locate;
 mod reminders;

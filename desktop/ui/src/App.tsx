@@ -41,7 +41,7 @@ type Sun = {
 };
 
 const CONSENT =
-  "Daylight records which app is in the foreground. Data stays in %LOCALAPPDATA%\\Daylight. No cloud. No keystrokes. No screenshots.";
+  "Daylight records which app is in the foreground. In a browser, a site in front for five minutes is recorded by its name. Data stays in %LOCALAPPDATA%\\Daylight. No cloud. No keystrokes. No screenshots.";
 
 const emptySettings: LiveSettings = {
   idle_threshold_s: "60",

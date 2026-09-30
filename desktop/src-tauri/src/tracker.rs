@@ -11,6 +11,7 @@ const MERGE_MS: i64 = 5_000;
 const SAMPLE_MS: i64 = 1_000;
 
 static PAUSED: AtomicBool = AtomicBool::new(false);
+static BROWSER_FRONT: AtomicBool = AtomicBool::new(false);
 static LOCKED: AtomicBool = AtomicBool::new(false);
 static STARTED: OnceLock<()> = OnceLock::new();
 static HWND_RAW: AtomicIsize = AtomicIsize::new(0);
@@ -95,6 +96,10 @@ fn spawn(db: Arc<Mutex<Connection>>) {
 
 #[cfg(windows)]
 fn thread_main(db: Arc<Mutex<Connection>>, rx: mpsc::Receiver<Cmd>) {
+    unsafe {
+        use windows::Win32::System::Com::{CoInitializeEx, COINIT_APARTMENTTHREADED};
+        let _ = CoInitializeEx(None, COINIT_APARTMENTTHREADED);
+    }
     unsafe { run_loop(db, rx) }
 }
 
@@ -366,7 +371,7 @@ fn on_tick(
         return;
     }
 
-    if from_hook || !hooked {
+    if from_hook || !hooked || BROWSER_FRONT.load(Ordering::SeqCst) {
         sample_foreground(db, last_fg, last_event, open_id, host_pid);
     } else if let Ok(conn) = db.lock() {
         let id = open_id.load(Ordering::SeqCst);
@@ -407,21 +412,32 @@ fn sample_foreground(
     let Ok(conn) = db.lock() else { return };
     let excluded = db::excluded_keys(&conn).unwrap_or_default();
     if skip_app(&fg.app_key, fg.desktop, &excluded) {
+        BROWSER_FRONT.store(false, Ordering::SeqCst);
         if open_id.swap(0, Ordering::SeqCst) != 0 {
             let _ = db::close_open_sessions(&conn);
         }
         return;
     }
-    if let Err(err) = db::upsert_app(&conn, &fg.app_key, &fg.exe_name, &fg.product_name) {
+    let (app_key, product_name) = refine_site(&conn, &fg, now);
+    if let Err(err) = db::upsert_app(&conn, &app_key, &fg.exe_name, &product_name) {
         crate::log_line(&format!("app row failed: {err}"));
         return;
+    }
+    if let Some(parent) = app_key.strip_suffix("#other") {
+        let _ = db::upsert_app(&conn, parent, &fg.exe_name, &fg.product_name);
+        if let Ok(color) = db::assign_color(&conn, parent) {
+            let _ = conn.execute(
+                "UPDATE apps SET color = ?1 WHERE app_key = ?2",
+                rusqlite::params![color, app_key],
+            );
+        }
     }
     if db::record_titles(&conn) {
         let _dropped = fg.title.filter(|title| !title_is_sensitive(title));
     }
 
     let current = open_id.load(Ordering::SeqCst);
-    let same = current != 0 && open_key_matches(&conn, current, &fg.app_key);
+    let same = current != 0 && open_key_matches(&conn, current, &app_key);
     let recent = now.saturating_sub(last_event.load(Ordering::SeqCst)) < MERGE_MS;
     if same && recent {
         let _ = db::bump_session(&conn, current, 0);
@@ -429,13 +445,36 @@ fn sample_foreground(
         return;
     }
     let _ = db::close_open_sessions(&conn);
-    match db::open_session(&conn, &fg.app_key, false) {
+    match db::open_session(&conn, &app_key, false) {
         Ok(id) => {
             open_id.store(id, Ordering::SeqCst);
             last_event.store(now, Ordering::SeqCst);
-            crate::log_line(&format!("session {}", fg.app_key));
+            crate::log_line(&format!("session {app_key}"));
         }
         Err(err) => crate::log_line(&format!("session open failed: {err}")),
+    }
+}
+
+fn refine_site(conn: &Connection, fg: &Foreground, now: i64) -> (String, String) {
+    let Some(browser) = crate::browser::kind(&fg.exe_name) else {
+        BROWSER_FRONT.store(false, Ordering::SeqCst);
+        return (fg.app_key.clone(), fg.product_name.clone());
+    };
+    BROWSER_FRONT.store(true, Ordering::SeqCst);
+    let raw = crate::browser::read_address(windows::Win32::Foundation::HWND(fg.hwnd as *mut _));
+    let Some(host) = raw.as_deref().and_then(crate::browser::site_host) else {
+        return (fg.app_key.clone(), fg.product_name.clone());
+    };
+    let day = db::local_day(conn);
+    if day.is_empty() {
+        return (fg.app_key.clone(), fg.product_name.clone());
+    }
+    let delta = crate::browser::take_delta(now, browser.exe, &host);
+    let total = db::note_site(conn, &day, browser.exe, &host, delta).unwrap_or(0);
+    if total >= db::SITE_SPLIT_MS {
+        (format!("{}#{host}", fg.app_key), host)
+    } else {
+        (format!("{}#other", fg.app_key), format!("{} · other", browser.label))
     }
 }
 
@@ -453,6 +492,7 @@ struct Foreground {
     product_name: String,
     title: Option<String>,
     desktop: bool,
+    hwnd: isize,
 }
 
 #[cfg(windows)]
@@ -516,6 +556,7 @@ fn foreground(host_pid: &std::sync::atomic::AtomicU32) -> Option<Foreground> {
                             product_name: product,
                             title: window_title(hwnd),
                             desktop: false,
+                            hwnd: hwnd.0 as isize,
                         });
                     }
                     let _ = CloseHandle(child);
@@ -533,6 +574,7 @@ fn foreground(host_pid: &std::sync::atomic::AtomicU32) -> Option<Foreground> {
             product_name: product,
             title: window_title(hwnd),
             desktop,
+            hwnd: hwnd.0 as isize,
         })
     }
 }
