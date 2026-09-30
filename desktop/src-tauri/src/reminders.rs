@@ -244,7 +244,7 @@ fn tick(app: &AppHandle, db: &Arc<Mutex<Connection>>) {
         roll_hardcore_day(&conn, &local_date);
         sleep = enforce_hardcore(&conn);
     }
-    let budget = budget_notice(&conn, &local_date, hardcore && is_daytime(now, lat, lon, &tz));
+    let budget = budget_notices(&conn, &local_date, hardcore);
     drop(conn);
     let Ok(conn) = db.lock() else {
         if sleep {
@@ -259,7 +259,7 @@ fn tick(app: &AppHandle, db: &Arc<Mutex<Connection>>) {
             let _ = conn.execute("UPDATE reminders SET enabled = 0 WHERE id = ?1", [row.id]);
         }
     }
-    if let Some((title, body)) = budget {
+    for (title, body) in budget {
         toast(app, &title, &body, 0);
     }
     if sleep {
@@ -267,57 +267,40 @@ fn tick(app: &AppHandle, db: &Arc<Mutex<Connection>>) {
     }
 }
 
-fn budget_notice(conn: &Connection, local_date: &str, warn_at_two: bool) -> Option<(String, String)> {
+fn budget_notices(conn: &Connection, local_date: &str, hardcore: bool) -> Vec<(String, String)> {
     let minutes: i64 = db::setting(conn, "screen_budget_min").parse().unwrap_or(0);
     if minutes <= 0 {
-        return None;
+        return Vec::new();
     }
-    let active = db::get_today(conn).ok()?.get("active_ms")?.as_i64()?;
-    let used = active as f64 / (minutes as f64 * 60_000.0);
-    let mark = if warn_at_two && used >= 0.98 {
-        "low"
-    } else if !warn_at_two && used >= 0.9 {
-        "ten"
-    } else if used >= 2.0 / 3.0 {
-        "two"
-    } else if used >= 1.0 / 3.0 {
-        "third"
-    } else {
-        return None;
+    let Some(active) = db::get_today(conn).ok().and_then(|value| value.get("active_ms")?.as_i64()) else {
+        return Vec::new();
     };
+    let used = active as f64 / (minutes as f64 * 60_000.0);
     let stored = db::setting(conn, "budget_marks");
     let (day, marks) = stored.split_once('|').unwrap_or(("", ""));
-    let already = if day == local_date { marks } else { "" };
-    let rank = |name: &str| match name {
-        "low" => 4,
-        "ten" => 3,
-        "two" => 2,
-        "third" => 1,
-        _ => 0,
-    };
-    let highest = already.split(',').map(rank).max().unwrap_or(0);
-    if rank(mark) <= highest {
-        return None;
-    }
-    let levels = if warn_at_two {
-        ["third", "two", "low"]
+    let mut recorded: Vec<String> = if day == local_date {
+        marks.split(',').filter(|mark| !mark.is_empty()).map(|mark| mark.to_string()).collect()
     } else {
-        ["third", "two", "ten"]
+        Vec::new()
     };
-    let mut next = Vec::new();
-    for level in levels {
-        if rank(level) <= rank(mark) {
-            next.push(level);
+    let mut due = Vec::new();
+    let mut push = |name: &str, reached: bool, title: &str, body: &str| {
+        if !reached || recorded.iter().any(|mark| mark == name) {
+            return;
         }
-    }
-    db::set_setting(conn, "budget_marks", &format!("{local_date}|{}", next.join(","))).ok()?;
-    let (title, body) = match mark {
-        "low" => ("2% left", "Two percent of today's screen time is left."),
-        "ten" => ("10% left", "A tenth of today's screen time is left."),
-        "two" => ("Two thirds gone", "Two thirds of today's screen time is used."),
-        _ => ("A third gone", "A third of today's screen time is used."),
+        recorded.push(name.to_string());
+        due.push((title.to_string(), body.to_string()));
     };
-    Some((title.to_string(), body.to_string()))
+    push("third", used >= 1.0 / 3.0, "A third gone", "A third of today's screen time is used.");
+    push("two", used >= 2.0 / 3.0, "Two thirds gone", "Two thirds of today's screen time is used.");
+    push("ten", used >= 0.9, "10% left", "A tenth of today's screen time is left.");
+    if hardcore {
+        push("low", used >= 0.98, "2% left", "Two percent of today's screen time is left.");
+    }
+    if !due.is_empty() {
+        let _ = db::set_setting(conn, "budget_marks", &format!("{local_date}|{}", recorded.join(",")));
+    }
+    due
 }
 
 fn roll_hardcore_day(conn: &Connection, today: &str) {
@@ -357,18 +340,6 @@ fn enforce_hardcore(conn: &Connection) -> bool {
         let _ = db::set_setting(conn, "hardcore_streak", "0");
     }
     false
-}
-
-fn is_daytime(now: i64, lat: f64, lon: f64, tz: &str) -> bool {
-    let day = sun::compute(now, lat, lon, tz);
-    match day.polar {
-        Some(Polar::Up) => true,
-        Some(Polar::Down) => false,
-        None => match (day.sunrise_ms, day.sunset_ms) {
-            (Some(rise), Some(set)) => now >= rise && now < set,
-            _ => false,
-        },
-    }
 }
 
 fn previous_day(date: &str) -> Option<String> {
