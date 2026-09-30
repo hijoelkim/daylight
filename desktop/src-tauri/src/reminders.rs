@@ -200,15 +200,21 @@ fn tick(app: &AppHandle, db: &Arc<Mutex<Connection>>) {
                     due.push(row);
                 }
             }
-            "sunset" => {
-                if paused && !present {
+            "sunrise" | "sunset" => {
+                let open_only = row.kind == "sunrise" || row.app_key.as_deref() == Some("default-sun");
+                if open_only {
+                    if !present || paused {
+                        continue;
+                    }
+                } else if paused && !present {
                     continue;
                 }
                 if matches!(day.polar, Some(Polar::Up) | Some(Polar::Down)) {
                     continue;
                 }
-                let Some(sunset) = day.sunset_ms else { continue };
-                let due_at = sunset + row.sunset_offset_min.unwrap_or(0) * 60_000;
+                let moment = if row.kind == "sunrise" { day.sunrise_ms } else { day.sunset_ms };
+                let Some(at) = moment else { continue };
+                let due_at = at + row.sunset_offset_min.unwrap_or(0) * 60_000;
                 if now >= due_at && now < due_at + 90_000 && slot.fired_on != local_date {
                     slot.fired_on = local_date.clone();
                     due.push(row);

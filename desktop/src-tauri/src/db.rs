@@ -128,7 +128,27 @@ pub fn migrate(conn: &Connection) -> Result<(), String> {
 
     conn.pragma_update(None, "user_version", 1).map_err(|err| err.to_string())?;
     rollup_past_days(conn)?;
+    seed_sun_reminders(conn)?;
     Ok(())
+}
+
+fn seed_sun_reminders(conn: &Connection) -> Result<(), String> {
+    if setting(conn, "sun_reminders") == "1" {
+        return Ok(());
+    }
+    conn.execute(
+        "INSERT INTO reminders (kind, title, body, sunset_offset_min, app_key, enabled)
+         VALUES ('sunrise', 'Sunrise', 'Go outside and look at the sunrise.', 0, 'default-sun', 1)",
+        [],
+    )
+    .map_err(|err| err.to_string())?;
+    conn.execute(
+        "INSERT INTO reminders (kind, title, body, sunset_offset_min, app_key, enabled)
+         VALUES ('sunset', 'Sunset', 'Go outside and look at the sunset.', 0, 'default-sun', 1)",
+        [],
+    )
+    .map_err(|err| err.to_string())?;
+    set_setting(conn, "sun_reminders", "1")
 }
 
 pub fn now_ms() -> i64 {

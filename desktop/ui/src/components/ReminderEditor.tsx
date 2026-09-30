@@ -1,10 +1,11 @@
-const kinds = ["interval", "clock", "after-screen", "after-app", "sunset", "once"] as const;
+const kinds = ["interval", "clock", "after-screen", "after-app", "sunrise", "sunset", "once"] as const;
 
 const labels: Record<string, string> = {
   interval: "Every N minutes",
   clock: "At a clock time",
   "after-screen": "After screen time",
   "after-app": "After an app",
+  sunrise: "At sunrise",
   sunset: "At sunset",
   once: "Once",
 };
@@ -30,7 +31,8 @@ function summary(reminder: ReminderRow): string {
   if (reminder.kind === "clock") return `at ${reminder.time_local ?? ""}`;
   if (reminder.kind === "after-screen") return `after ${reminder.after_screen_min ?? 30} minutes on screen`;
   if (reminder.kind === "after-app") return `after ${reminder.after_screen_min ?? 30} minutes in ${reminder.app_key || "an app"}`;
-  if (reminder.kind === "sunset") return `sunset ${reminder.sunset_offset_min ?? 0} min`;
+  if (reminder.kind === "sunrise") return "at sunrise";
+  if (reminder.kind === "sunset") return reminder.sunset_offset_min ? `sunset ${reminder.sunset_offset_min} min` : "at sunset";
   return reminder.time_local || "once";
 }
 
