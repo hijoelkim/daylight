@@ -105,6 +105,17 @@ function offsetMs(timeZone: string, date: Date): number {
   return asUtc - date.getTime();
 }
 
+/** Local midnight in `timeZone` for the calendar day of `now` in that zone. */
+export function localMidnight(now: Date, timeZone: string): Date {
+  const p = zoneParts(timeZone, now);
+  const guess = new Date(Date.UTC(p.year, p.month - 1, p.day, 0, 0, 0));
+  const first = offsetMs(timeZone, guess);
+  let utc = new Date(guess.getTime() - first);
+  const second = offsetMs(timeZone, utc);
+  if (second !== first) utc = new Date(guess.getTime() - second);
+  return utc;
+}
+
 /** Civil noon in `timeZone` for the calendar day of `now` in that zone. */
 export function zonedNoon(now: Date, timeZone: string): Date {
   const p = zoneParts(timeZone, now);

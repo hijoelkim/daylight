@@ -31,26 +31,32 @@ function arcPath(t0: number, t1: number) {
 export function SunArc({
   rise,
   set,
+  riseT,
+  setT,
   noonT,
   nowT,
   marks = [],
 }: {
   rise: string;
   set: string;
+  riseT: number | null;
+  setT: number | null;
   noonT: number;
   nowT: number;
   marks?: ArcMark[];
 }) {
-  const start = point(0);
-  const end = point(1);
+  const midnightStart = point(0);
+  const midnightEnd = point(1);
   const noon = point(Math.min(1, Math.max(0, noonT)));
   const now = point(Math.min(1, Math.max(0, nowT)));
+  const risePoint = riseT == null ? null : point(Math.min(1, Math.max(0, riseT)));
+  const setPoint = setT == null ? null : point(Math.min(1, Math.max(0, setT)));
 
   return (
     <figure>
       <div className="relative bg-horizon-sky">
         <div className="absolute inset-x-0 bottom-0 h-8 bg-horizon-ground" />
-        <svg viewBox="0 0 320 148" className="relative block h-auto w-full" role="img" aria-label={`${rise} rise, ${set} set`}>
+        <svg viewBox="0 0 320 148" className="relative block h-auto w-full" role="img" aria-label={`Midnight to midnight. ${rise} rise, ${set} set`}>
           <path d={arcPath(0, 1)} fill="none" stroke="#3a4454" strokeWidth="3" />
           {marks.map((mark) => (
             <path
@@ -62,15 +68,19 @@ export function SunArc({
               strokeLinecap="round"
             />
           ))}
-          <circle cx={start.x} cy={start.y} r="3" className="fill-accent" />
+          <circle cx={midnightStart.x} cy={midnightStart.y} r="3" className="fill-muted" />
+          <circle cx={midnightEnd.x} cy={midnightEnd.y} r="3" className="fill-muted" />
+          {risePoint ? <circle cx={risePoint.x} cy={risePoint.y} r="3.5" className="fill-accent" /> : null}
           <circle cx={noon.x} cy={noon.y} r="2.5" className="fill-muted" />
-          <circle cx={end.x} cy={end.y} r="3" className="fill-muted" />
+          {setPoint ? <circle cx={setPoint.x} cy={setPoint.y} r="3.5" className="fill-accent" /> : null}
           <circle cx={now.x} cy={now.y} r="5" className="fill-fg" suppressHydrationWarning />
         </svg>
       </div>
       <figcaption className="mt-3 flex flex-wrap gap-x-8 gap-y-1 font-mono text-sm tabular-nums">
+        <span>00:00</span>
         <span>{rise} rise</span>
         <span>{set} set</span>
+        <span>24:00</span>
       </figcaption>
     </figure>
   );

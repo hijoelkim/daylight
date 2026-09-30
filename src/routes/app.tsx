@@ -19,7 +19,7 @@ import {
   type CityId,
 } from "@/lib/daylight/demo-data";
 import { useDemo } from "@/lib/daylight/store";
-import { dayFraction, formatClock, sunTimesOnLocalDay } from "@/lib/daylight/sun";
+import { formatClock, localMidnight, sunTimesOnLocalDay } from "@/lib/daylight/sun";
 
 export const Route = createFileRoute("/app")({
   head: () => ({ meta: [{ title: "Today" }] }),
@@ -58,10 +58,23 @@ function Today() {
     [now, place],
   );
 
-  const noonT = times ? dayFraction(times.solarNoon, times.sunrise, times.sunset) : 0.5;
-  const nowT = times ? dayFraction(now, times.sunrise, times.sunset) : 0;
+  const midnight = place ? localMidnight(now, place.timeZone) : null;
+  const dayMs = 86_400_000;
+  const along = (when: Date) => (midnight ? (when.getTime() - midnight.getTime()) / dayMs : 0);
+  const noonT = times ? along(times.solarNoon) : 0.5;
+  const nowT = midnight ? Math.min(1, Math.max(0, (now.getTime() - midnight.getTime()) / dayMs)) : 0;
+  const riseT = times ? along(times.sunrise) : null;
+  const setT = times ? along(times.sunset) : null;
   const rise = times ? formatClock(times.sunrise, place?.timeZone ?? "UTC") : "--:--";
   const set = times ? formatClock(times.sunset, place?.timeZone ?? "UTC") : "--:--";
+  const marks =
+    demo.cleared || riseT == null || setT == null
+      ? []
+      : sampleMarks.map((mark) => ({
+          color: mark.color,
+          t0: riseT + (setT - riseT) * mark.t0,
+          t1: riseT + (setT - riseT) * mark.t1,
+        }));
 
   return (
     <SiteChrome>
@@ -83,7 +96,7 @@ function Today() {
 
         <section className="mt-8" aria-label="Day arc">
           {place && times ? (
-            <SunArc rise={rise} set={set} noonT={noonT} nowT={nowT} marks={demo.cleared ? [] : sampleMarks} />
+            <SunArc rise={rise} set={set} riseT={riseT} setT={setT} noonT={noonT} nowT={nowT} marks={marks} />
           ) : (
             <p className="text-muted">
               {place ? "No sunrise or sunset for this place today." : "Use decimal degrees."}

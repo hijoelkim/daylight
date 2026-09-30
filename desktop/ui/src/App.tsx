@@ -30,6 +30,8 @@ type Today = {
 type Sun = {
   sunrise?: number | null;
   sunset?: number | null;
+  solar_noon?: number | null;
+  day_start?: number | null;
   sunrise_clock?: string;
   solar_noon_clock?: string;
   sunset_clock?: string;
@@ -150,17 +152,21 @@ export function App() {
       ? Math.round((today.active_ms / sun.daylight_ms) * 100)
       : 0;
   const noonT = 0.5;
-  const nowT = sun?.now_fraction_along_arc ?? 0;
-  const day = (sun?.sunset ?? 0) - (sun?.sunrise ?? 0);
+  const dayStart = sun?.day_start ?? 0;
+  const dayMs = 86_400_000;
+  const fraction = (ms: number) => (ms - dayStart) / dayMs;
   const marks: ArcMark[] =
-    polar || day <= 0
-      ? []
-      : (today?.spans ?? []).flatMap((span) => {
-          const rise = sun?.sunrise ?? 0;
-          const t0 = Math.max(0, (span.start - rise) / day);
-          const t1 = Math.min(1, (span.end - rise) / day);
+    dayStart > 0
+      ? (today?.spans ?? []).flatMap((span) => {
+          const t0 = Math.max(0, fraction(span.start));
+          const t1 = Math.min(1, fraction(span.end));
           return t1 > t0 ? [{ t0, t1, color: span.color }] : [];
-        });
+        })
+      : [];
+  const riseT = sun?.sunrise != null && dayStart > 0 ? fraction(sun.sunrise) : null;
+  const setT = sun?.sunset != null && dayStart > 0 ? fraction(sun.sunset) : null;
+  const noonAlong = sun?.solar_noon != null && dayStart > 0 ? fraction(sun.solar_noon) : noonT;
+  const nowAlong = dayStart > 0 ? Math.min(1, Math.max(0, fraction(Date.now()))) : 0;
 
   return (
     <main className="min-h-dvh bg-bg px-6 py-8 text-fg">
@@ -185,7 +191,15 @@ export function App() {
         <div className="mx-auto w-full max-w-4xl pb-8">
           <h1 className="font-display text-4xl font-medium tracking-wide sm:text-5xl">Today</h1>
           <section className="mt-8" aria-label="Day arc">
-            <SunArc rise={sun?.sunrise_clock || "--:--"} set={sun?.sunset_clock || "--:--"} noonT={noonT} nowT={polar ? 0 : nowT} marks={marks} />
+            <SunArc
+              rise={sun?.sunrise_clock || "--:--"}
+              set={sun?.sunset_clock || "--:--"}
+              riseT={polar ? null : riseT}
+              setT={polar ? null : setT}
+              noonT={noonAlong}
+              nowT={nowAlong}
+              marks={marks}
+            />
             <DayMeter
               screen={`${formatMs(today?.active_ms ?? 0)} on screen`}
               daylightPct={pct}
@@ -241,6 +255,7 @@ export function App() {
                     void invoke<string>("export_data").then((path) => setNote(path));
                   }}
                   onWipe={() => {
+                    if (!window.confirm("Wipe history? Screen time on this computer will be deleted.")) return;
                     void invoke("wipe_data").then(() => loadLive()).then(() => setNote("History wiped."));
                   }}
                   onPause={() => {

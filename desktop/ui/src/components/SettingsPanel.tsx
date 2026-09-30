@@ -38,12 +38,20 @@ export function SettingsPanel({
         <BudgetFields minutes={Number(settings.screen_budget_min) || 0} onChange={(minutes) => onChange({ screen_budget_min: String(minutes) })} />
       </SettingRow>
       <SettingRow label="Hardcore mode">
-        <input
-          type="checkbox"
-          checked={settings.hardcore === "1"}
-          onChange={(event) => onChange({ hardcore: event.target.checked ? "1" : "0" })}
-          className="size-4 accent-fg"
-        />
+        <span className="flex flex-col items-end gap-2">
+          <input
+            type="checkbox"
+            checked={settings.hardcore === "1"}
+            onChange={(event) => onChange({ hardcore: event.target.checked ? "1" : "0" })}
+            className="size-4 accent-fg"
+          />
+          <details className="max-w-sm text-right">
+            <summary className="cursor-pointer text-sm text-muted">What hardcore mode does</summary>
+            <p className="mt-2 text-pretty text-sm leading-relaxed text-muted">
+              Hardcore mode warns at 10% left, then again at 2%. When the battery reaches zero, the computer goes to sleep.
+            </p>
+          </details>
+        </span>
       </SettingRow>
       <SettingRow label="Idle threshold">
         <span className="flex items-center gap-2">

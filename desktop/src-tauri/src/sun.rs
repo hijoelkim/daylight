@@ -104,10 +104,15 @@ pub fn refresh(conn: &Connection) -> Result<Value, String> {
             );
         }
     }
+    let day_start = Timestamp::from_millisecond(now).ok().and_then(|stamp| {
+        let date = stamp.to_zoned(zone.clone()).date();
+        date.to_zoned(zone.clone()).ok().map(|zoned| zoned.timestamp().as_millisecond())
+    });
     Ok(json!({
         "sunrise": day.sunrise_ms,
         "solar_noon": day.solar_noon_ms,
         "sunset": day.sunset_ms,
+        "day_start": day_start,
         "sunrise_clock": rise_clock,
         "solar_noon_clock": noon_clock,
         "sunset_clock": set_clock,
