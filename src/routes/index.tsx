@@ -6,7 +6,7 @@ import { SiteChrome } from "@/components/daylight/SiteChrome";
 import { SmartScreenNote } from "@/components/daylight/SmartScreenNote";
 
 export const Route = createFileRoute("/")({
-  head: () => ({ meta: [{ title: "Daylight" }] }),
+  head: () => ({ meta: [{ title: "more day, less screen" }] }),
   component: Home,
 });
 
@@ -45,9 +45,7 @@ function Home() {
     <SiteChrome>
       <main>
         <h1 className="mt-10 max-w-3xl font-display text-5xl font-medium leading-none tracking-wide text-balance sm:mt-16 sm:text-7xl">
-          See the day.
-          <br />
-          See the screen.
+          more day, less screen
         </h1>
         <div className="mt-8 max-w-xl space-y-3 text-pretty leading-relaxed text-muted">
           <p>Daylight sits in the Windows tray and watches which app is in front.</p>
