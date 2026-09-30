@@ -21,7 +21,8 @@
         "visible": false,
         "center": true,
         "theme": "Dark",
-        "backgroundColor": "#08090c"
+        "backgroundColor": "#08090c",
+        "icon": "icons/icon.png"
       }
     ],
     "security": {
