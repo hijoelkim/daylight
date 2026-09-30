@@ -1,10 +1,11 @@
-const kinds = ["interval", "clock", "after-screen", "after-app", "sunrise", "sunset", "once"] as const;
+const kinds = ["interval", "clock", "after-screen", "after-app", "before-zero", "sunrise", "sunset", "once"] as const;
 
 const labels: Record<string, string> = {
   interval: "Every N minutes",
   clock: "At a clock time",
   "after-screen": "After screen time",
   "after-app": "After an app",
+  "before-zero": "N minutes before zero battery",
   sunrise: "At sunrise",
   sunset: "At sunset",
   once: "Once",
@@ -31,6 +32,7 @@ function summary(reminder: ReminderRow): string {
   if (reminder.kind === "clock") return `at ${reminder.time_local ?? ""}`;
   if (reminder.kind === "after-screen") return `after ${reminder.after_screen_min ?? 30} minutes on screen`;
   if (reminder.kind === "after-app") return `after ${reminder.after_screen_min ?? 30} minutes in ${reminder.app_key || "an app"}`;
+  if (reminder.kind === "before-zero") return `${reminder.after_screen_min ?? 15} minutes before zero battery`;
   if (reminder.kind === "sunrise") return "at sunrise";
   if (reminder.kind === "sunset") return reminder.sunset_offset_min ? `sunset ${reminder.sunset_offset_min} min` : "at sunset";
   return reminder.time_local || "once";
@@ -105,6 +107,9 @@ export function ReminderEditor({
             ) : null}
             {reminder.kind === "after-screen" || reminder.kind === "after-app" ? (
               <NumberField label="After minutes" value={reminder.after_screen_min ?? 30} onChange={(after_screen_min) => onSave({ ...reminder, after_screen_min })} />
+            ) : null}
+            {reminder.kind === "before-zero" ? (
+              <NumberField label="Minutes before zero" value={reminder.after_screen_min ?? 15} onChange={(after_screen_min) => onSave({ ...reminder, after_screen_min })} />
             ) : null}
             {reminder.kind === "after-app" ? (
               <label className="grid gap-1 text-sm">

@@ -140,6 +140,12 @@ fn tick(app: &AppHandle, db: &Arc<Mutex<Connection>>) {
         day.polar.is_some(),
         present && !paused,
     );
+    let budget_min: i64 = db::setting(&conn, "screen_budget_min").parse().unwrap_or(0);
+    let active_ms = db::get_today(&conn)
+        .ok()
+        .and_then(|value| value.get("active_ms")?.as_i64())
+        .unwrap_or(0);
+    let remaining_ms = budget_min * 60_000 - active_ms;
     let rows = load_enabled(&conn).unwrap_or_default();
     let mut progress = load_progress(&conn);
     let mut due: Vec<Row> = Vec::new();
@@ -205,6 +211,16 @@ fn tick(app: &AppHandle, db: &Arc<Mutex<Connection>>) {
                 let step = row.after_screen_min.unwrap_or(60).max(1) * 60_000;
                 if slot.screen_ms >= step {
                     slot.screen_ms = 0;
+                    due.push(row);
+                }
+            }
+            "before-zero" => {
+                if !present || paused || budget_min <= 0 {
+                    continue;
+                }
+                let lead = row.after_screen_min.unwrap_or(15).max(1) * 60_000;
+                if remaining_ms > 0 && remaining_ms <= lead && slot.fired_on != local_date {
+                    slot.fired_on = local_date.clone();
                     due.push(row);
                 }
             }
