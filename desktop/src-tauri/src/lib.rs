@@ -107,16 +107,147 @@ fn format_span(ms: i64) -> String {
 }
 
 fn apply_tooltip(app: &AppHandle) {
-    let ms = app
+    let (ms, budget_min) = app
         .try_state::<Db>()
         .and_then(|db| {
             let conn = db.0.lock().ok()?;
-            db::get_today(&conn).ok()?.get("active_ms")?.as_i64()
+            let ms = db::get_today(&conn).ok()?.get("active_ms")?.as_i64()?;
+            let budget_min = db::setting(&conn, "screen_budget_min").parse::<i64>().unwrap_or(0);
+            Some((ms, budget_min))
         })
-        .unwrap_or(0);
-    if let Some(tray) = app.tray_by_id("daylight") {
+        .unwrap_or((0, 0));
+    let Some(tray) = app.tray_by_id("daylight") else { return };
+    if budget_min > 0 {
+        let left = (1.0 - (ms as f64 / (budget_min as f64 * 60_000.0))).clamp(0.0, 1.0);
+        let percent = (left * 100.0).round() as u8;
+        let _ = tray.set_tooltip(Some(format!("Daylight · {percent}% left · {} today", format_span(ms))));
+        let _ = tray.set_icon(Some(tauri::image::Image::new_owned(battery_icon(percent), 32, 32)));
+    } else {
         let _ = tray.set_tooltip(Some(format!("Daylight · {} today", format_span(ms))));
+        if let Some(icon) = app.default_window_icon() {
+            let _ = tray.set_icon(Some(icon.clone()));
+        }
     }
+}
+
+fn battery_icon(percent: u8) -> Vec<u8> {
+    let percent = percent.min(100);
+    let left = f64::from(percent) / 100.0;
+    let mut pixels = vec![0u8; 32 * 32 * 4];
+    let body = (2, 9, 27, 23);
+    for y in body.1..=body.3 {
+        for x in body.0..=body.2 {
+            put(&mut pixels, x, y, [197, 205, 216, 255]);
+        }
+    }
+    for y in 13..=18 {
+        for x in 28..=30 {
+            put(&mut pixels, x, y, [197, 205, 216, 255]);
+        }
+    }
+    let inner = (4, 11, 25, 21);
+    let width = inner.2 - inner.0 + 1;
+    for y in inner.1..=inner.3 {
+        for x in inner.0..=inner.2 {
+            let along = f64::from(x - inner.0) / f64::from(width - 1);
+            if along <= left {
+                let hue = charge_rgb(1.0 - along * 0.85);
+                let shade = if y < inner.1 + 3 { lighten(hue, 36) } else { hue };
+                put(&mut pixels, x, y, [shade[0], shade[1], shade[2], 255]);
+            } else {
+                put(&mut pixels, x, y, [12, 14, 18, 255]);
+            }
+        }
+    }
+    draw_percent(&mut pixels, percent, left > 0.45);
+    pixels
+}
+
+fn charge_rgb(t: f64) -> [u8; 3] {
+    let t = t.clamp(0.0, 1.0);
+    let green = [61, 158, 78];
+    let amber = [214, 176, 64];
+    let red = [196, 74, 64];
+    if t >= 0.5 {
+        lerp_rgb(amber, green, (t - 0.5) * 2.0)
+    } else {
+        lerp_rgb(red, amber, t * 2.0)
+    }
+}
+
+fn lighten(color: [u8; 3], by: u8) -> [u8; 3] {
+    [
+        color[0].saturating_add(by),
+        color[1].saturating_add(by),
+        color[2].saturating_add(by),
+    ]
+}
+
+fn lerp_rgb(a: [u8; 3], b: [u8; 3], t: f64) -> [u8; 3] {
+    let mix = |from: u8, to: u8| (f64::from(from) + (f64::from(to) - f64::from(from)) * t).round() as u8;
+    [mix(a[0], b[0]), mix(a[1], b[1]), mix(a[2], b[2])]
+}
+
+fn put(pixels: &mut [u8], x: i32, y: i32, color: [u8; 4]) {
+    if x < 0 || y < 0 || x >= 32 || y >= 32 {
+        return;
+    }
+    let index = ((y as usize) * 32 + x as usize) * 4;
+    pixels[index..index + 4].copy_from_slice(&color);
+}
+
+fn draw_percent(pixels: &mut [u8], percent: u8, dark: bool) {
+    let text = percent.to_string();
+    let scale = if text.len() > 2 { 1 } else { 2 };
+    let glyph_w = 4 * scale;
+    let width = text.len() as i32 * glyph_w - scale;
+    let mut cursor = (32 - width) / 2;
+    let top = (32 - 5 * scale) / 2;
+    let ink = if dark { [16, 18, 14, 255] } else { [244, 242, 234, 255] };
+    let halo = if dark { [244, 242, 234, 220] } else { [12, 14, 18, 220] };
+    let mut stamps = Vec::new();
+    for ch in text.chars() {
+        let Some(rows) = digit_rows(ch) else { continue };
+        for (row, bits) in rows.iter().enumerate() {
+            for col in 0..3 {
+                if bits & (1 << (2 - col)) == 0 {
+                    continue;
+                }
+                for sy in 0..scale {
+                    for sx in 0..scale {
+                        stamps.push((cursor + col * scale + sx, top + (row as i32) * scale + sy));
+                    }
+                }
+            }
+        }
+        cursor += glyph_w;
+    }
+    for (x, y) in &stamps {
+        for oy in -1..=1 {
+            for ox in -1..=1 {
+                put(pixels, x + ox, y + oy, halo);
+            }
+        }
+    }
+    for (x, y) in stamps {
+        put(pixels, x, y, ink);
+    }
+}
+
+fn digit_rows(ch: char) -> Option<[u8; 5]> {
+    Some(match ch {
+        '0' => [0b111, 0b101, 0b101, 0b101, 0b111],
+        '1' => [0b010, 0b110, 0b010, 0b010, 0b111],
+        '2' => [0b111, 0b001, 0b111, 0b100, 0b111],
+        '3' => [0b111, 0b001, 0b111, 0b001, 0b111],
+        '4' => [0b101, 0b101, 0b111, 0b001, 0b001],
+        '5' => [0b111, 0b100, 0b111, 0b001, 0b111],
+        '6' => [0b111, 0b100, 0b111, 0b101, 0b111],
+        '7' => [0b111, 0b001, 0b010, 0b010, 0b010],
+        '8' => [0b111, 0b101, 0b111, 0b101, 0b111],
+        '9' => [0b111, 0b101, 0b111, 0b001, 0b111],
+        _ => return None,
+    })
 }
 
 fn watch_tooltip(app: AppHandle) {
@@ -305,6 +436,7 @@ fn set_settings(app: AppHandle, settings: Option<serde_json::Value>) -> Result<(
     if settings.get("lat").is_some() || settings.get("lon").is_some() || settings.get("tz").is_some() || settings.get("city").is_some() {
         refresh_sun(&app);
     }
+    apply_tooltip(&app);
     Ok(())
 }
 
