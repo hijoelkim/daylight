@@ -274,6 +274,7 @@ fn tick(app: &AppHandle, db: &Arc<Mutex<Connection>>) {
         roll_hardcore_day(&conn, &local_date);
         hardcore_step(&conn, &local_date)
     } else {
+        tracker::disarm_key_watch();
         false
     };
     let budget = budget_notices(&conn, &local_date, hardcore);

@@ -14,19 +14,28 @@ static PAUSED: AtomicBool = AtomicBool::new(false);
 static BROWSER_FRONT: AtomicBool = AtomicBool::new(false);
 static WATCH_KEYS: AtomicBool = AtomicBool::new(false);
 static KEY_HIT: AtomicBool = AtomicBool::new(false);
+static KEY_HOOK: AtomicIsize = AtomicIsize::new(0);
+static KEY_FAIL_LOGGED: AtomicBool = AtomicBool::new(false);
 
 pub fn arm_key_watch() {
     KEY_HIT.store(false, Ordering::SeqCst);
     WATCH_KEYS.store(true, Ordering::SeqCst);
+    let _ = send(Cmd::ArmKeys);
 }
 
 pub fn keep_key_watch() {
     WATCH_KEYS.store(true, Ordering::SeqCst);
+    if KEY_HOOK.load(Ordering::SeqCst) == 0 {
+        let _ = send(Cmd::ArmKeys);
+    }
 }
 
 pub fn disarm_key_watch() {
-    WATCH_KEYS.store(false, Ordering::SeqCst);
+    let watching = WATCH_KEYS.swap(false, Ordering::SeqCst);
     KEY_HIT.store(false, Ordering::SeqCst);
+    if watching || KEY_HOOK.load(Ordering::SeqCst) != 0 {
+        let _ = send(Cmd::DisarmKeys);
+    }
 }
 
 pub fn take_keystroke() -> bool {
@@ -41,6 +50,8 @@ enum Cmd {
     Pause,
     Resume,
     Stop,
+    ArmKeys,
+    DisarmKeys,
 }
 
 pub fn ensure_started(db: Arc<Mutex<Connection>>) {
@@ -251,15 +262,56 @@ unsafe fn run_loop(db: Arc<Mutex<Connection>>, rx: mpsc::Receiver<Cmd>) {
         crate::log_line("foreground hook failed; polling every 1s");
     }
     *HOOKS.lock().unwrap_or_else(|err| err.into_inner()) = hooks;
-    if let Ok(hook) = windows::Win32::UI::WindowsAndMessaging::SetWindowsHookExW(
-        windows::Win32::UI::WindowsAndMessaging::WH_KEYBOARD_LL,
-        Some(on_key),
-        None,
-        0,
-    ) {
-        if !hook.is_invalid() {
-            std::mem::forget(hook);
-            crate::log_line("keyboard watch installed");
+
+    fn install_key_hook() {
+        if KEY_HOOK.load(Ordering::SeqCst) != 0 {
+            return;
+        }
+        unsafe {
+            match windows::Win32::UI::WindowsAndMessaging::SetWindowsHookExW(
+                windows::Win32::UI::WindowsAndMessaging::WH_KEYBOARD_LL,
+                Some(on_key),
+                None,
+                0,
+            ) {
+                Ok(hook) if !hook.is_invalid() => {
+                    KEY_HOOK.store(hook.0 as isize, Ordering::SeqCst);
+                }
+                _ => {
+                    if !KEY_FAIL_LOGGED.swap(true, Ordering::SeqCst) {
+                        crate::log_line("keyboard watch failed");
+                    }
+                }
+            }
+        }
+    }
+
+    fn remove_key_hook() {
+        WATCH_KEYS.store(false, Ordering::SeqCst);
+        let raw = KEY_HOOK.swap(0, Ordering::SeqCst);
+        if raw != 0 {
+            unsafe {
+                let _ = windows::Win32::UI::WindowsAndMessaging::UnhookWindowsHookEx(
+                    windows::Win32::UI::WindowsAndMessaging::HHOOK(raw as *mut _),
+                );
+            }
+        }
+    }
+
+    fn apply_cmd(cmd: Cmd) {
+        match cmd {
+            Cmd::Pause => {
+                remove_key_hook();
+                clear_hooks(&HOOKS);
+            }
+            Cmd::Resume => install(&HOOKS),
+            Cmd::Stop => {
+                remove_key_hook();
+                clear_hooks(&HOOKS);
+                unsafe { PostQuitMessage(0) };
+            }
+            Cmd::ArmKeys => install_key_hook(),
+            Cmd::DisarmKeys => remove_key_hook(),
         }
     }
 
@@ -286,14 +338,7 @@ unsafe fn run_loop(db: Arc<Mutex<Connection>>, rx: mpsc::Receiver<Cmd>) {
 
     loop {
         while let Ok(cmd) = rx.try_recv() {
-            match cmd {
-                Cmd::Pause => clear_hooks(&HOOKS),
-                Cmd::Resume => install(&HOOKS),
-                Cmd::Stop => {
-                    clear_hooks(&HOOKS);
-                    unsafe { PostQuitMessage(0) };
-                }
-            }
+            apply_cmd(cmd);
         }
 
         let mut msg = MSG::default();
@@ -303,14 +348,7 @@ unsafe fn run_loop(db: Arc<Mutex<Connection>>, rx: mpsc::Receiver<Cmd>) {
         }
         if msg.message == WM_TRACK {
             while let Ok(cmd) = rx.try_recv() {
-                match cmd {
-                    Cmd::Pause => clear_hooks(&HOOKS),
-                    Cmd::Resume => install(&HOOKS),
-                    Cmd::Stop => {
-                        clear_hooks(&HOOKS);
-                        unsafe { PostQuitMessage(0) };
-                    }
-                }
+                apply_cmd(cmd);
             }
         } else if msg.message == WM_WTSSESSION_CHANGE {
             let code = msg.wParam.0;
@@ -354,6 +392,7 @@ unsafe fn run_loop(db: Arc<Mutex<Connection>>, rx: mpsc::Receiver<Cmd>) {
         let _ = DispatchMessageW(&msg);
     }
 
+    remove_key_hook();
     clear_hooks(&HOOKS);
     HWND_RAW.store(0, Ordering::SeqCst);
     let _ = UnregisterClassW(class_name, None);
