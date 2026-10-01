@@ -39,14 +39,27 @@ async function fromGithub(): Promise<Response | null> {
     const listed = await fetch(`https://api.github.com/repos/${REPO}/releases/latest`, { headers });
     if (!listed.ok) return null;
     const body = (await listed.json()) as { assets?: Array<{ name?: string; browser_download_url?: string }> };
-    const url = body.assets?.find((asset) => asset.name === FILE_NAME)?.browser_download_url;
-    if (!url) return null;
-    const file = await fetch(url, { headers: { ...headers, Accept: "application/octet-stream" } });
+    const raw = body.assets?.find((asset) => asset.name === FILE_NAME)?.browser_download_url;
+    if (!raw || !trustedSetupUrl(raw)) return null;
+    const file = await fetch(raw, { headers: { Accept: "application/octet-stream", "User-Agent": "daylight" } });
     if (!file.ok || !file.body) return null;
     return new Response(file.body, { headers: attachment });
   } catch {
     return null;
   }
+}
+
+function trustedSetupUrl(url: string): boolean {
+  const prefix = `https://github.com/${REPO}/releases/download/`;
+  if (!url.startsWith(prefix)) return false;
+  const rest = url.slice(prefix.length);
+  if (/[?#\\\s]/.test(rest)) return false;
+  const slash = rest.indexOf("/");
+  if (slash <= 0) return false;
+  const tag = rest.slice(0, slash).replace(/^v/, "");
+  const name = rest.slice(slash + 1);
+  if (name !== FILE_NAME || tag.includes("/")) return false;
+  return /^\d+\.\d+\.\d+$/.test(tag);
 }
 
 function fromDisk(): Response | null {

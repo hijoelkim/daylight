@@ -48,6 +48,23 @@ jobs:
           if (-not $setup) { throw "NSIS setup missing" }
           Copy-Item $setup.FullName artifacts/Daylight-Setup.exe
 
+      # Authenticode hook. Do not commit a certificate.
+      # When a cert exists, add repo secrets WINDOWS_CERT_BASE64 and WINDOWS_CERT_PASSWORD,
+      # install signtool via the Windows SDK, then uncomment this step before the release upload.
+      # - name: Sign installers
+      #   if: ${{ secrets.WINDOWS_CERT_BASE64 != '' }}
+      #   shell: pwsh
+      #   env:
+      #     WINDOWS_CERT_BASE64: ${{ secrets.WINDOWS_CERT_BASE64 }}
+      #     WINDOWS_CERT_PASSWORD: ${{ secrets.WINDOWS_CERT_PASSWORD }}
+      #   run: |
+      #     $pfx = Join-Path $env:RUNNER_TEMP daylight.pfx
+      #     [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:WINDOWS_CERT_BASE64))
+      #     Get-ChildItem artifacts\*.exe | ForEach-Object {
+      #       & signtool sign /fd SHA256 /f $pfx /p $env:WINDOWS_CERT_PASSWORD /tr http://timestamp.digicert.com /td SHA256 $_.FullName
+      #     }
+      #     Remove-Item $pfx -Force
+
       - uses: actions/upload-artifact@v4
         continue-on-error: true
         with:

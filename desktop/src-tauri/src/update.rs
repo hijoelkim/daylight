@@ -46,12 +46,17 @@ fn latest_setup() -> Result<(String, String), String> {
             assets.iter().find(|asset| asset.get("name").and_then(|name| name.as_str()) == Some(SETUP_NAME))
         })
         .and_then(|asset| asset.get("browser_download_url").and_then(|value| value.as_str()))
-        .ok_or_else(|| "The release has no Daylight-Setup.exe.".to_string())?
-        .to_string();
-    Ok((tag, url))
+        .ok_or_else(|| "The release has no Daylight-Setup.exe.".to_string())?;
+    if !trusted_setup_url(url) {
+        return Err("The release URL is not the Daylight installer.".into());
+    }
+    Ok((tag, url.to_string()))
 }
 
 fn download(url: &str) -> Result<PathBuf, String> {
+    if !trusted_setup_url(url) {
+        return Err("The release URL is not the Daylight installer.".into());
+    }
     let path = std::env::temp_dir().join(SETUP_NAME);
     let response = ureq::get(url)
         .set("User-Agent", "daylight")
@@ -97,6 +102,30 @@ fn is_newer(latest: &str, current: &str) -> bool {
         }
     }
     false
+}
+
+fn trusted_setup_url(url: &str) -> bool {
+    let Some(rest) = url.strip_prefix("https://github.com/hijoelkim/daylight/releases/download/") else {
+        return false;
+    };
+    if rest.contains(['?', '#', '\\', ' ']) {
+        return false;
+    }
+    let Some((tag, name)) = rest.split_once('/') else {
+        return false;
+    };
+    if name != SETUP_NAME || tag.contains('/') {
+        return false;
+    }
+    let tag = tag.strip_prefix('v').unwrap_or(tag);
+    let mut parts = tag.split('.');
+    let (Some(major), Some(minor), Some(patch)) = (parts.next(), parts.next(), parts.next()) else {
+        return false;
+    };
+    parts.next().is_none()
+        && [major, minor, patch]
+            .iter()
+            .all(|part| !part.is_empty() && part.chars().all(|ch| ch.is_ascii_digit()))
 }
 
 fn version_parts(text: &str) -> Vec<u64> {
