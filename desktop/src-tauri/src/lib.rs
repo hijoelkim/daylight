@@ -453,6 +453,17 @@ fn install_verified_update(app: AppHandle) -> Result<serde_json::Value, String> 
 }
 
 #[tauri::command]
+fn choose_zero(app: AppHandle, choice: Option<String>) -> Result<(), String> {
+    match choice.as_deref() {
+        Some("sleep") => reminders::choose_sleep(&app),
+        Some("power") => reminders::choose_power(&app),
+        Some("download") => reminders::choose_download(&app),
+        _ => return Err("choose sleep, power, or download".into()),
+    }
+    Ok(())
+}
+
+#[tauri::command]
 fn export_data(app: AppHandle) -> Result<String, String> {
     let path = with_db(&app, db::export_data)?;
     if let Some(dir) = path.parent() {
@@ -599,6 +610,7 @@ pub fn run() {
             export_data,
             apply_update,
             install_verified_update,
+            choose_zero,
             wipe_data,
             pause,
             resume

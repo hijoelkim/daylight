@@ -50,7 +50,7 @@ export function SettingsPanel({
           <details className="max-w-sm text-right">
             <summary className="cursor-pointer text-sm text-muted">What hardcore mode does</summary>
             <p className="mt-2 text-pretty text-sm leading-relaxed text-muted">
-              Hardcore mode warns at 10% left, then again at 2%. At zero it asks you to sleep, power off, or stay on in download mode. Nothing happens until you choose. In download mode, any key press resets the streak. Daylight does not record which key. Mouse movement does not.
+              Hardcore mode warns at 10% left, then again at 2%. At zero, Daylight opens and waits. Nothing sleeps or powers off until you choose sleep, power off, or download mode. In download mode, any key press resets the streak. Daylight does not record which key. Mouse movement does not.
             </p>
           </details>
         </span>

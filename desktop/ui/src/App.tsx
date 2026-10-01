@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useCallback, useEffect, useState } from "react";
 import { AppList, type LiveApp } from "./components/AppList";
@@ -25,6 +26,7 @@ type Today = {
   paused?: boolean;
   hardcore_streak?: number;
   hardcore_broken?: boolean;
+  zero_prompt?: boolean;
 };
 
 type Sun = {
@@ -67,6 +69,7 @@ export function App() {
   const [reminders, setReminders] = useState<ReminderRow[]>([]);
   const [settings, setSettings] = useState<LiveSettings>(emptySettings);
   const [note, setNote] = useState("");
+  const [zeroOpen, setZeroOpen] = useState(false);
 
   const loadLive = useCallback(async () => {
     const [nextToday, nextSun] = await Promise.all([
@@ -116,10 +119,30 @@ export function App() {
 
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
-      if (event.key === "Escape") void getCurrentWindow().hide();
+      if (event.key === "Escape" && !zeroOpen) void getCurrentWindow().hide();
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
+  }, [zeroOpen]);
+
+  useEffect(() => {
+    if (today?.zero_prompt) setZeroOpen(true);
+    if (today && today.zero_prompt === false) setZeroOpen(false);
+  }, [today]);
+
+  useEffect(() => {
+    let stop = false;
+    let unlisten: (() => void) | undefined;
+    void listen("zero-choice", () => {
+      if (!stop) setZeroOpen(true);
+    }).then((fn) => {
+      if (stop) fn();
+      else unlisten = fn;
+    });
+    return () => {
+      stop = true;
+      unlisten?.();
+    };
   }, []);
 
   useEffect(() => {
@@ -147,6 +170,18 @@ export function App() {
     if (patch.city || patch.lat || patch.lon) await loadLive();
   }
 
+  async function chooseZero(choice: "sleep" | "power" | "download") {
+    setToday((current) => (current ? { ...current, zero_prompt: false } : current));
+    setZeroOpen(false);
+    try {
+      await invoke("choose_zero", { choice });
+    } catch (err) {
+      setToday((current) => (current ? { ...current, zero_prompt: true } : current));
+      setZeroOpen(true);
+      setNote(err instanceof Error ? err.message : String(err));
+    }
+  }
+
   const empty = (today?.active_ms ?? 0) === 0;
   const polar = sun?.polar === "up" || sun?.polar === "down";
   const pct =
@@ -172,6 +207,27 @@ export function App() {
 
   return (
     <main className="min-h-dvh bg-bg px-6 py-8 text-fg">
+      {zeroOpen && phase === "ready" ? (
+        <div className="fixed inset-0 z-20 flex items-center justify-center bg-bg/90 px-6">
+          <div className="w-full max-w-md border border-border bg-bg-elevated p-6">
+            <h2 className="font-display text-4xl tracking-wide">Max screen time</h2>
+            <p className="mt-4 text-pretty leading-relaxed text-muted">
+              The battery is at zero. The computer stays on until you choose.
+            </p>
+            <div className="mt-6 flex flex-col items-start gap-3">
+              <button type="button" className="inline-flex min-h-11 items-center text-fg" onClick={() => void chooseZero("sleep")}>
+                Sleep the computer
+              </button>
+              <button type="button" className="inline-flex min-h-11 items-center text-fg" onClick={() => void chooseZero("power")}>
+                Power off
+              </button>
+              <button type="button" className="inline-flex min-h-11 items-center text-fg" onClick={() => void chooseZero("download")}>
+                Download mode
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
       {phase === "loading" ? <p className="font-mono text-sm text-muted">Daylight</p> : null}
       {phase === "unreachable" ? <p className="text-pretty leading-relaxed text-muted">Could not reach the shell.</p> : null}
       {phase === "consent" ? (

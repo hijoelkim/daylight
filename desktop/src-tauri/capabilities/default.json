@@ -30,6 +30,7 @@
     "allow-export-data",
     "allow-apply-update",
     "allow-install-verified-update",
+    "allow-choose-zero",
     "allow-wipe-data",
     "allow-pause",
     "allow-resume"

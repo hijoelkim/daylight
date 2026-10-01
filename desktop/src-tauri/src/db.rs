@@ -543,6 +543,16 @@ pub fn get_today(conn: &Connection) -> Result<Value, String> {
         .optional()
         .map_err(|err| err.to_string())?
         .unwrap_or(Value::Null);
+    let budget_min: i64 = setting(conn, "screen_budget_min").parse().unwrap_or(0);
+    let local_day = {
+        let date = today(&zone);
+        format!("{:04}-{:02}-{:02}", date.year(), date.month(), date.day())
+    };
+    let choice_day = setting(conn, "hardcore_choice").split('|').next().unwrap_or("").to_string();
+    let zero_prompt = setting(conn, "hardcore") == "1"
+        && budget_min > 0
+        && totals.active_ms >= budget_min * 60_000
+        && choice_day != local_day;
     Ok(json!({
         "active_ms": totals.active_ms,
         "idle_ms": totals.idle_ms,
@@ -552,6 +562,7 @@ pub fn get_today(conn: &Connection) -> Result<Value, String> {
         "current": current,
         "hardcore_streak": setting(conn, "hardcore_streak").parse::<i64>().unwrap_or(0),
         "hardcore_broken": setting(conn, "hardcore_broken") == "1",
+        "zero_prompt": zero_prompt,
     }))
 }
 

@@ -4,7 +4,7 @@ use std::time::Duration;
 
 use rusqlite::{params, Connection, OptionalExtension};
 use serde_json::{json, Value};
-use tauri::{AppHandle, Manager};
+use tauri::{AppHandle, Emitter, Manager};
 
 use crate::db;
 use crate::sun::{self, Polar};
@@ -292,8 +292,18 @@ fn tick(app: &AppHandle, db: &Arc<Mutex<Connection>>) {
     for (title, body) in budget {
         toast(app, &title, &body, 0);
     }
-    if ask_zero && !ZERO_OPEN.swap(true, std::sync::atomic::Ordering::SeqCst) && !zero_toast(app) {
-        ZERO_OPEN.store(false, std::sync::atomic::Ordering::SeqCst);
+    if ask_zero {
+        let visible = app
+            .get_webview_window("main")
+            .and_then(|window| window.is_visible().ok())
+            .unwrap_or(false);
+        if !visible {
+            crate::show_main(app);
+        }
+        let _ = app.emit("zero-choice", ());
+        if !ZERO_OPEN.swap(true, std::sync::atomic::Ordering::SeqCst) {
+            let _ = zero_toast(app);
+        }
     }
 }
 
@@ -392,25 +402,19 @@ fn zero_toast(app: &AppHandle) -> bool {
         let mut notification = notify_rust::Notification::new();
         notification
             .summary("Max screen time")
-            .body("Max screen time has been reached.")
+            .body("The battery is at zero. Open Daylight and choose sleep, power off, or download mode. Nothing happens until you choose.")
             .app_id("com.hijoelkim.daylight")
             .timeout(notify_rust::Timeout::Never)
             .urgency(notify_rust::Urgency::Critical);
-        notification.action("sleep", "Sleep the computer");
-        notification.action("power", "Power off");
-        notification.action("download", "Download mode");
+        notification.action("open", "Open Daylight");
         let Ok(handle) = notification.show() else {
             return false;
         };
         let app = app.clone();
         std::thread::spawn(move || {
             handle.wait_for_action(move |action| {
-                ZERO_OPEN.store(false, std::sync::atomic::Ordering::SeqCst);
-                match action {
-                    "sleep" => choose_sleep(&app),
-                    "power" => choose_power(&app),
-                    "download" => choose_download(&app),
-                    _ => {}
+                if action == "open" {
+                    crate::show_main(&app);
                 }
             });
         });
@@ -423,7 +427,7 @@ fn zero_toast(app: &AppHandle) -> bool {
     }
 }
 
-fn choose_sleep(app: &AppHandle) {
+pub fn choose_sleep(app: &AppHandle) {
     let Some(db) = app.try_state::<crate::Db>() else { return };
     let Ok(conn) = db.0.lock() else { return };
     let active = db::get_today(&conn).ok().and_then(|value| value.get("active_ms")?.as_i64()).unwrap_or(0);
@@ -435,7 +439,7 @@ fn choose_sleep(app: &AppHandle) {
     sleep_computer();
 }
 
-fn choose_power(app: &AppHandle) {
+pub fn choose_power(app: &AppHandle) {
     let Some(db) = app.try_state::<crate::Db>() else { return };
     let Ok(conn) = db.0.lock() else { return };
     let day = day_key(&conn);
@@ -445,7 +449,7 @@ fn choose_power(app: &AppHandle) {
     power_off();
 }
 
-fn choose_download(app: &AppHandle) {
+pub fn choose_download(app: &AppHandle) {
     let Some(db) = app.try_state::<crate::Db>() else { return };
     let Ok(conn) = db.0.lock() else { return };
     let day = day_key(&conn);

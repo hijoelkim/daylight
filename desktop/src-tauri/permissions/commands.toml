@@ -79,6 +79,11 @@ description = "Run an installer only after its SHA-256 matched the release."
 commands.allow = ["install_verified_update"]
 
 [[permission]]
+identifier = "allow-choose-zero"
+description = "Sleep, power off, or stay on only after the user picks one."
+commands.allow = ["choose_zero"]
+
+[[permission]]
 identifier = "allow-wipe-data"
 description = "Stub."
 commands.allow = ["wipe_data"]
