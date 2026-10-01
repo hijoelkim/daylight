@@ -50,7 +50,7 @@ export function SettingsPanel({
           <details className="max-w-sm text-right">
             <summary className="cursor-pointer text-sm text-muted">What hardcore mode does</summary>
             <p className="mt-2 text-pretty text-sm leading-relaxed text-muted">
-              Hardcore mode warns at 10% left, then again at 2%. At zero it asks you to sleep, power off, or stay on in download mode. A keystroke in download mode resets the streak. Mouse movement does not.
+              Hardcore mode warns at 10% left, then again at 2%. At zero it asks you to sleep, power off, or stay on in download mode. Nothing happens until you choose. In download mode, any key press resets the streak. Daylight does not record which key. Mouse movement does not.
             </p>
           </details>
         </span>
@@ -125,6 +125,9 @@ export function SettingsPanel({
         <button type="button" className="inline-flex min-h-11 items-center text-sm text-fg" onClick={onUpdate}>
           Check for updates
         </button>
+        <p className="w-full text-sm text-muted">
+          Updates come from GitHub. The installer hash must match the release, and Daylight asks before it installs.
+        </p>
         <button type="button" className="inline-flex min-h-11 items-center text-sm text-fg" onClick={onExport}>
           Export
         </button>

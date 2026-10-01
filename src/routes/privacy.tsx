@@ -8,17 +8,17 @@ export const Route = createFileRoute("/privacy")({
 
 const recorded = [
   "Foreground app name and how long it was in front",
-  "A website's name, once that site has been in front for five minutes",
+  "A website hostname, once that site has been in front for about five minutes",
   "Idle and lock gaps, so away time is not screen time",
-  "Sunrise/sunset from the location you set",
+  "Sunrise and sunset from the location you set",
   "Reminders you wrote",
+  "Window titles, only if you turn that on in Settings",
 ] as const;
 
 const notCollected = [
-  "Keystrokes, clipboard, screenshots, or the path after a site name",
+  "Which keys you pressed, the clipboard, or screenshots",
+  "The path, query, or fragment after a site hostname",
   "Sites you only open briefly. Those stay inside the browser",
-  "Window titles. Turn that off in Settings if you don't want them",
-  "Anything to a server",
 ] as const;
 
 function Privacy() {
@@ -52,6 +52,15 @@ function Privacy() {
             ))}
           </ul>
         </section>
+        <p className="mt-10 text-pretty leading-relaxed">
+          Daylight does not log keys. If hardcore download mode is on, it may briefly watch for any key press, as a yes or no, to reset the streak. It does not record which key. Mouse movement does not count.
+        </p>
+        <p className="mt-4 text-pretty leading-relaxed">
+          Screen time stays on this PC. The app may contact GitHub only to check for an update or download one, and only after the installer hash matches the release. You confirm before it installs.
+        </p>
+        <p className="mt-4 text-pretty leading-relaxed">
+          Hardcore mode does not sleep or power off the computer by itself. At zero it asks you to sleep, power off, or stay on for a download.
+        </p>
         <p className="mt-10 font-mono text-sm leading-relaxed text-muted">
           Where: %LOCALAPPDATA%\Daylight\
         </p>
