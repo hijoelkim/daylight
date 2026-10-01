@@ -32,6 +32,14 @@ Per-user. It does not ask for an administrator.
 
 Publisher `J K`. Copyright `J K / hijoelkim`. The build is unsigned.
 
+## Updates
+
+Until Authenticode signing exists, an update is hash-pinned. CI writes `Daylight-Setup.exe.sha256` next to `Daylight-Setup.exe` on the GitHub release. The file is SHA-256 hex, then two spaces, then the file name.
+
+Check for updates downloads the installer and that checksum. It launches nothing until the file hash matches. If the checksum asset is missing or the hash does not match, the app returns `{ "state": "blocked", "reason": "missing_integrity" }` or `"mismatch"` and does not start the installer. A match only marks the download ready. The window then asks before install. Silent `/S` runs only after that confirmation, and the hash is checked again immediately before the process starts.
+
+Later, when a certificate exists, sign `Daylight.exe` and `Daylight-Setup.exe` with the commented Authenticode step in `.github/workflows/build-windows.yml`. Keep publishing the SHA-256 asset as well. A signed updater can then require both a valid Authenticode signature and the pinned hash.
+
 ## Test matrix
 
 - First launch shows the consent card, the window, and the tray. No console.

@@ -47,6 +47,8 @@ jobs:
             Select-Object -First 1
           if (-not $setup) { throw "NSIS setup missing" }
           Copy-Item $setup.FullName artifacts/Daylight-Setup.exe
+          $hash = (Get-FileHash -Algorithm SHA256 artifacts/Daylight-Setup.exe).Hash.ToLower()
+          Set-Content -Path artifacts/Daylight-Setup.exe.sha256 -Value "$hash  Daylight-Setup.exe" -Encoding ascii
 
       # Authenticode hook. Do not commit a certificate.
       # When a cert exists, add repo secrets WINDOWS_CERT_BASE64 and WINDOWS_CERT_PASSWORD,
@@ -72,6 +74,7 @@ jobs:
           path: |
             artifacts/Daylight.exe
             artifacts/Daylight-Setup.exe
+            artifacts/Daylight-Setup.exe.sha256
 
       - name: Attach installers to the GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')
@@ -80,3 +83,4 @@ jobs:
           files: |
             artifacts/Daylight.exe
             artifacts/Daylight-Setup.exe
+            artifacts/Daylight-Setup.exe.sha256

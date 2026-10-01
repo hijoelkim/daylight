@@ -29,6 +29,7 @@
     "allow-set-settings",
     "allow-export-data",
     "allow-apply-update",
+    "allow-install-verified-update",
     "allow-wipe-data",
     "allow-pause",
     "allow-resume"

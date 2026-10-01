@@ -74,6 +74,11 @@ description = "Check GitHub for a newer installer and run it."
 commands.allow = ["apply_update"]
 
 [[permission]]
+identifier = "allow-install-verified-update"
+description = "Run an installer only after its SHA-256 matched the release."
+commands.allow = ["install_verified_update"]
+
+[[permission]]
 identifier = "allow-wipe-data"
 description = "Stub."
 commands.allow = ["wipe_data"]

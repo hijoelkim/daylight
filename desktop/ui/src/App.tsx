@@ -265,10 +265,31 @@ export function App() {
                   }}
                   onUpdate={() => {
                     setNote("Checking for updates…");
-                    void invoke<{ state: string; version: string; latest?: string }>("apply_update")
+                    void invoke<{ state: string; version?: string; latest?: string; reason?: string }>("apply_update")
                       .then((result) => {
-                        if (result.state === "current") setNote(`Up to date. ${result.version}.`);
-                        else setNote(`Installing ${result.latest}. Daylight will close and reopen.`);
+                        if (result.state === "current") {
+                          setNote(`Up to date. ${result.version}.`);
+                          return;
+                        }
+                        if (result.state === "blocked") {
+                          const why =
+                            result.reason === "mismatch"
+                              ? "The installer hash does not match the release."
+                              : "No trusted checksum was published with this release.";
+                          setNote(`Update blocked. ${why}`);
+                          return;
+                        }
+                        if (result.state !== "ready") {
+                          setNote("Update did not start.");
+                          return;
+                        }
+                        const install = window.confirm(`Install Daylight ${result.latest}? The installer hash matches the release.`);
+                        if (!install) {
+                          setNote("Update not installed.");
+                          return;
+                        }
+                        setNote(`Installing ${result.latest}. Daylight will close and reopen.`);
+                        return invoke("install_verified_update");
                       })
                       .catch((err: unknown) => setNote(err instanceof Error ? err.message : String(err)));
                   }}

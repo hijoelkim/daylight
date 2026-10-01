@@ -660,13 +660,14 @@ dependencies = [
 
 [[package]]
 name = "daylight"
-version = "0.1.17"
+version = "0.1.19"
 dependencies = [
  "jiff",
  "notify-rust",
  "rusqlite",
  "serde",
  "serde_json",
+ "sha2",
  "tauri",
  "tauri-build",
  "tauri-plugin-autostart",

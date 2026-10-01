@@ -448,6 +448,11 @@ fn apply_update(app: AppHandle) -> Result<serde_json::Value, String> {
 }
 
 #[tauri::command]
+fn install_verified_update(app: AppHandle) -> Result<serde_json::Value, String> {
+    update::install_verified_update(&app)
+}
+
+#[tauri::command]
 fn export_data(app: AppHandle) -> Result<String, String> {
     let path = with_db(&app, db::export_data)?;
     if let Some(dir) = path.parent() {
@@ -593,6 +598,7 @@ pub fn run() {
             set_settings,
             export_data,
             apply_update,
+            install_verified_update,
             wipe_data,
             pause,
             resume
