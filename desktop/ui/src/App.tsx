@@ -284,7 +284,7 @@ export function App() {
               ))}
             </div>
             <div className="mt-6" role="tabpanel">
-              {tab === "Week" ? <WeekChart days={week} /> : null}
+              {tab === "Week" ? <WeekChart days={week} budgetMin={Number(settings.screen_budget_min) || 0} /> : null}
               {tab === "Reminders" ? (
                 <ReminderEditor
                   reminders={reminders}
