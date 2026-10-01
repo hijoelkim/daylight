@@ -97,9 +97,12 @@ export function SettingsPanel({
         </span>
       </SettingRow>
       <SettingRow label="Record window titles">
-        <button type="button" role="switch" aria-checked={settings.record_titles === "1"} onClick={() => onChange({ record_titles: settings.record_titles === "1" ? "0" : "1" })} className={`relative h-6 w-10 border ${settings.record_titles === "1" ? "border-accent bg-bg-subtle" : "border-border bg-bg"}`}>
-          <span className={`absolute top-0.5 left-0.5 size-4 bg-accent ${settings.record_titles === "1" ? "translate-x-4" : ""}`} />
-        </button>
+        <span className="flex items-center gap-3">
+          {settings.record_titles !== "1" ? <span className="text-sm text-muted">Off until you turn this on</span> : null}
+          <button type="button" role="switch" aria-checked={settings.record_titles === "1"} onClick={() => onChange({ record_titles: settings.record_titles === "1" ? "0" : "1" })} className={`relative h-6 w-10 border ${settings.record_titles === "1" ? "border-accent bg-bg-subtle" : "border-border bg-bg"}`}>
+            <span className={`absolute top-0.5 left-0.5 size-4 bg-accent ${settings.record_titles === "1" ? "translate-x-4" : ""}`} />
+          </button>
+        </span>
       </SettingRow>
       <SettingRow label="Start with Windows">
         <button type="button" role="switch" aria-checked={settings.start_with_windows === "1"} onClick={() => onChange({ start_with_windows: settings.start_with_windows === "1" ? "0" : "1" })} className={`relative h-6 w-10 border ${settings.start_with_windows === "1" ? "border-accent bg-bg-subtle" : "border-border bg-bg"}`}>

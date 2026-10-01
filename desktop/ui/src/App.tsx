@@ -46,7 +46,7 @@ const CONSENT =
 const emptySettings: LiveSettings = {
   idle_threshold_s: "60",
   retain_days: "90",
-  record_titles: "1",
+  record_titles: "0",
   start_with_windows: "1",
   city: "",
   lat: "-33.8688",

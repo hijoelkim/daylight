@@ -11,7 +11,7 @@ use serde_json::{json, Map, Value};
 const DEFAULTS: &[(&str, &str)] = &[
     ("idle_threshold_s", "60"),
     ("retain_days", "90"),
-    ("record_titles", "1"),
+    ("record_titles", "0"),
     ("start_with_windows", "1"),
     ("dim_by", "50"),
     ("lat", "-33.8688"),
@@ -131,7 +131,6 @@ pub fn migrate(conn: &Connection) -> Result<(), String> {
     rollup_past_days(conn)?;
     seed_sun_reminders(conn)?;
     if setting(conn, "prefs_on") != "1" {
-        set_setting(conn, "record_titles", "1")?;
         set_setting(conn, "start_with_windows", "1")?;
         set_setting(conn, "prefs_on", "1")?;
     }
