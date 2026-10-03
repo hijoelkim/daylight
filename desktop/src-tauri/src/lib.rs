@@ -122,7 +122,8 @@ fn apply_tooltip(app: &AppHandle) {
     if budget_min > 0 {
         let left = (1.0 - (ms as f64 / (budget_min as f64 * 60_000.0))).clamp(0.0, 1.0);
         let percent = (left * 100.0).round() as u8;
-        let _ = tray.set_tooltip(Some(format!("Daylight · {percent}% left · {} today", format_span(ms))));
+        let remaining = (budget_min * 60_000 - ms).max(0);
+        let _ = tray.set_tooltip(Some(format!("Daylight · {percent}% left · {} left", format_span(remaining))));
         let _ = tray.set_icon(Some(tauri::image::Image::new_owned(battery_icon(percent), 32, 32)));
     } else {
         let _ = tray.set_tooltip(Some(format!("Daylight · {} today", format_span(ms))));
