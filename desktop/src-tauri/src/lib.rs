@@ -135,6 +135,9 @@ fn apply_tooltip(app: &AppHandle) {
 
 fn battery_icon(percent: u8) -> Vec<u8> {
     let percent = percent.min(100);
+    if percent == 0 {
+        return spent_battery();
+    }
     let left = f64::from(percent) / 100.0;
     let mut pixels = vec![0u8; 32 * 32 * 4];
     let body = (2, 9, 27, 23);
@@ -163,6 +166,23 @@ fn battery_icon(percent: u8) -> Vec<u8> {
         }
     }
     draw_percent(&mut pixels, percent, left > 0.45);
+    pixels
+}
+
+fn spent_battery() -> Vec<u8> {
+    let red = [196, 74, 64];
+    let mut pixels = vec![0u8; 32 * 32 * 4];
+    for y in 9..=23 {
+        for x in 2..=27 {
+            put(&mut pixels, x, y, [red[0], red[1], red[2], 255]);
+        }
+    }
+    for y in 13..=18 {
+        for x in 28..=30 {
+            put(&mut pixels, x, y, [red[0], red[1], red[2], 255]);
+        }
+    }
+    draw_percent(&mut pixels, 0, false);
     pixels
 }
 

@@ -70,6 +70,12 @@ export function App() {
   const [settings, setSettings] = useState<LiveSettings>(emptySettings);
   const [note, setNote] = useState("");
   const [zeroOpen, setZeroOpen] = useState(false);
+  const budgetMin = Number(settings.screen_budget_min) || 0;
+  const batteryEmpty = budgetMin > 0 && (today?.active_ms ?? 0) >= budgetMin * 60_000;
+
+  useEffect(() => {
+    document.documentElement.style.setProperty("--color-bg", batteryEmpty ? "#2c1214" : "#08090c");
+  }, [batteryEmpty]);
 
   const loadLive = useCallback(async () => {
     const [nextToday, nextSun] = await Promise.all([
@@ -206,7 +212,7 @@ export function App() {
   const nowAlong = dayStart > 0 ? Math.min(1, Math.max(0, fraction(Date.now()))) : 0;
 
   return (
-    <main className="min-h-dvh bg-bg px-6 py-8 text-fg">
+    <main className="min-h-dvh bg-bg px-6 py-8 text-fg" style={batteryEmpty ? { background: "#2c1214" } : undefined}>
       {zeroOpen && phase === "ready" ? (
         <div className="fixed inset-0 z-20 flex items-center justify-center bg-bg/90 px-6">
           <div className="w-full max-w-md border border-border bg-bg-elevated p-6">
