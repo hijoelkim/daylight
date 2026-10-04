@@ -516,7 +516,9 @@ fn sample_foreground(
             );
         }
     }
-    let title = if db::record_titles(&conn) {
+    let title = if app_key == "incognito" {
+        None
+    } else if db::record_titles(&conn) {
         fg.title.as_deref().filter(|title| !title_is_sensitive(title))
     } else {
         None
@@ -547,7 +549,11 @@ fn refine_site(conn: &Connection, fg: &Foreground, now: i64) -> (String, String)
         return (fg.app_key.clone(), fg.product_name.clone());
     };
     BROWSER_FRONT.store(true, Ordering::SeqCst);
-    let raw = crate::browser::read_address(windows::Win32::Foundation::HWND(fg.hwnd as *mut _));
+    let hwnd = windows::Win32::Foundation::HWND(fg.hwnd as *mut _);
+    if crate::browser::private_window(fg.title.as_deref(), hwnd) {
+        return ("incognito".to_string(), "Incognito mode".to_string());
+    }
+    let raw = crate::browser::read_address(hwnd);
     let Some(host) = raw.as_deref().and_then(crate::browser::site_host) else {
         return (fg.app_key.clone(), fg.product_name.clone());
     };

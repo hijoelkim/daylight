@@ -19,6 +19,7 @@ const notCollected = [
   "Which keys you pressed, the clipboard, or screenshots",
   "The path, query, or fragment after a site hostname",
   "Sites you only open briefly. Those stay inside the browser",
+  "Site names and page titles from incognito, InPrivate, or private windows. That time is labeled Incognito mode",
 ] as const;
 
 function Privacy() {

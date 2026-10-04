@@ -43,7 +43,7 @@ type Sun = {
 };
 
 const CONSENT =
-  "Daylight records the foreground app on this PC, in %LOCALAPPDATA%\\Daylight. A site in front for five minutes is stored as a hostname only. Window titles stay off until you turn them on. It does not record keys, clipboard, or screenshots. Hardcore download mode only notes that a key was pressed, not which one. Screen time is not uploaded. A confirmed update is downloaded from GitHub after its hash matches.";
+  "Daylight records the foreground app on this PC, in %LOCALAPPDATA%\\Daylight. A site in front for five minutes is stored as a hostname only. Incognito, InPrivate, and private windows are stored as Incognito mode, with no site name and no page title. Window titles stay off until you turn them on. It does not record keys, clipboard, or screenshots. Hardcore download mode only notes that a key was pressed, not which one. Screen time is not uploaded. A confirmed update is downloaded from GitHub after its hash matches.";
 
 const emptySettings: LiveSettings = {
   idle_threshold_s: "60",

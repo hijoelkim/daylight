@@ -41,6 +41,14 @@ pub fn site_host(raw: &str) -> Option<String> {
     Some(host.to_string())
 }
 
+pub fn private_title(title: Option<&str>) -> bool {
+    let Some(title) = title else { return false };
+    let lower = title.trim().to_ascii_lowercase();
+    lower.ends_with("(incognito)")
+        || lower.ends_with("(inprivate)")
+        || lower.ends_with("(private browsing)")
+}
+
 struct Clock {
     browser: String,
     host: String,
@@ -63,6 +71,11 @@ pub fn take_delta(now: i64, browser: &str, host: &str) -> i64 {
         at: now,
     });
     delta
+}
+
+#[cfg(windows)]
+pub fn private_window(title: Option<&str>, hwnd: windows::Win32::Foundation::HWND) -> bool {
+    private_title(title) || private_badge(hwnd)
 }
 
 #[cfg(windows)]
@@ -90,23 +103,75 @@ pub fn read_address(hwnd: windows::Win32::Foundation::HWND) -> Option<String> {
 }
 
 #[cfg(windows)]
+fn private_badge(hwnd: windows::Win32::Foundation::HWND) -> bool {
+    use windows::Win32::System::Com::{CoCreateInstance, CLSCTX_INPROC_SERVER};
+    use windows::Win32::UI::Accessibility::{CUIAutomation, IUIAutomation};
+
+    unsafe {
+        let Ok(auto): Result<IUIAutomation, _> = CoCreateInstance(&CUIAutomation, None, CLSCTX_INPROC_SERVER) else {
+            return false;
+        };
+        let Ok(root) = auto.ElementFromHandle(hwnd) else { return false };
+        ["Incognito", "InPrivate", "Private Browsing"]
+            .into_iter()
+            .any(|name| button_named(&auto, &root, name))
+    }
+}
+
+#[cfg(windows)]
+fn button_named(
+    auto: &windows::Win32::UI::Accessibility::IUIAutomation,
+    root: &windows::Win32::UI::Accessibility::IUIAutomationElement,
+    name: &str,
+) -> bool {
+    use windows::Win32::System::Variant::{VariantClear, VARIANT, VT_I4};
+    use windows::Win32::UI::Accessibility::{
+        TreeScope_Descendants, UIA_ButtonControlTypeId, UIA_ControlTypePropertyId, UIA_NamePropertyId,
+    };
+
+    unsafe {
+        let Some(name_cond) = text_condition(auto, UIA_NamePropertyId, name) else { return false };
+        let mut variant = VARIANT::default();
+        let slot = std::ops::DerefMut::deref_mut(&mut variant.Anonymous.Anonymous);
+        slot.vt = VT_I4;
+        slot.Anonymous.lVal = UIA_ButtonControlTypeId.0;
+        let type_cond = auto.CreatePropertyCondition(UIA_ControlTypePropertyId, &variant).ok();
+        let _ = VariantClear(&mut variant);
+        let Some(type_cond) = type_cond else { return false };
+        let Ok(both) = auto.CreateAndCondition(&name_cond, &type_cond) else { return false };
+        root.FindFirst(TreeScope_Descendants, &both).is_ok()
+    }
+}
+
+#[cfg(windows)]
+fn text_condition(
+    auto: &windows::Win32::UI::Accessibility::IUIAutomation,
+    property: windows::Win32::UI::Accessibility::UIA_PROPERTY_ID,
+    text: &str,
+) -> Option<windows::Win32::UI::Accessibility::IUIAutomationCondition> {
+    use windows::Win32::System::Variant::{VariantClear, VARIANT, VT_BSTR};
+    use windows::core::BSTR;
+
+    unsafe {
+        let mut variant = VARIANT::default();
+        let slot = std::ops::DerefMut::deref_mut(&mut variant.Anonymous.Anonymous);
+        slot.vt = VT_BSTR;
+        slot.Anonymous.bstrVal = std::mem::ManuallyDrop::new(BSTR::from(text));
+        let condition = auto.CreatePropertyCondition(property, &variant).ok();
+        let _ = VariantClear(&mut variant);
+        condition
+    }
+}
+
+#[cfg(windows)]
 unsafe fn find_by(
     auto: &windows::Win32::UI::Accessibility::IUIAutomation,
     root: &windows::Win32::UI::Accessibility::IUIAutomationElement,
     property: windows::Win32::UI::Accessibility::UIA_PROPERTY_ID,
     text: &str,
 ) -> Option<windows::Win32::UI::Accessibility::IUIAutomationElement> {
-    use std::ops::DerefMut;
-    use windows::Win32::System::Variant::{VariantClear, VARIANT, VT_BSTR};
     use windows::Win32::UI::Accessibility::TreeScope_Descendants;
-    use windows::core::BSTR;
 
-    let mut variant = VARIANT::default();
-    let slot = DerefMut::deref_mut(&mut variant.Anonymous.Anonymous);
-    slot.vt = VT_BSTR;
-    slot.Anonymous.bstrVal = std::mem::ManuallyDrop::new(BSTR::from(text));
-    let condition = auto.CreatePropertyCondition(property, &variant).ok();
-    let _ = VariantClear(&mut variant);
-    let condition = condition?;
+    let condition = text_condition(auto, property, text)?;
     root.FindFirst(TreeScope_Descendants, &condition).ok()
 }
